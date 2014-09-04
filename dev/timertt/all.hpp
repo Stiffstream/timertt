@@ -80,9 +80,25 @@ private :
 public :
 	typedef typename id_map_t::key_type id_t;
 
+	//! Default constructor.
 	timer_thread_template_t()
 	{}
 
+	//! Initializing constructor.
+	/*!
+	 * Allows to specify error_logger and actor_exception_handler.
+	 */
+	timer_thread_template_t(
+		ERROR_LOGGER error_logger,
+		ACTOR_EXCEPTION_HANDLER actor_exception_handler )
+		:	m_error_logger( error_logger )
+		,	m_exception_handler( actor_exception_handler )
+	{}
+
+	//! Desctructor.
+	/*!
+	 * Stopes timer thread if it is running.
+	 */
 	~timer_thread_template_t()
 	{
 		stop();
@@ -134,6 +150,9 @@ public :
 	schedule( DURATION_1 pause, DURATION_2 period, ACTOR actor )
 	{
 		std::lock_guard< std::mutex > lock( m_lock );
+
+		if( !m_thread )
+			throw std::runtime_error( "timer_thread is not started" );
 
 		auto id = ++m_ordinals;
 
@@ -201,7 +220,10 @@ private :
 			std::unique_lock< std::mutex > lock( m_lock );
 
 			if( m_shutdown )
+			{
 				break;
+				clear_all();
+			}
 
 			if( m_demands.empty() )
 				// Wait for the first demand or for the shutdown.
@@ -248,7 +270,7 @@ private :
 	}
 
 	inline void
-	ensure_id_iterator_valid( typename id_map_t::iterator it, id_t id )
+	ensure_id_iterator_valid( typename id_map_t::iterator & it, id_t & id )
 	{
 		if( it == m_ids.end() )
 		{
@@ -315,6 +337,13 @@ private :
 			m_error_logger( ss.str() );
 			std::abort();
 		}
+	}
+
+	inline void
+	clear_all()
+	{
+		demands_t demands; m_demands.swap( demands );
+		id_map_t ids; m_ids.swap( ids );
 	}
 };
 
