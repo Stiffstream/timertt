@@ -80,6 +80,7 @@ private :
 
 public :
 	typedef typename id_map_t::key_type id_t;
+	typedef ACTOR actor_t;
 
 	//! Default constructor.
 	timer_thread_template_t()
