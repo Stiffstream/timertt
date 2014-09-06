@@ -358,7 +358,7 @@ public :
 			throw std::runtime_error( "timer_thread is not started" );
 
 		wheel_timer_t * wheel_timer = cast_timer_pointer( timer.get() );
-		ensure_timer_not_activated( *wheel_timer );
+		ensure_timer_not_activated( wheel_timer );
 
 		wheel_timer->m_action = std::move(action);
 
@@ -386,9 +386,11 @@ public :
 		std::lock_guard< std::mutex > lock( m_lock );
 
 		wheel_timer_t * wheel_timer = cast_timer_pointer( timer.get() );
-		if( is_active_timer( *wheel_timer ) )
+		if( is_active_timer( wheel_timer ) )
 		{
 			remove_timer_from_wheel( wheel_timer );
+
+			deactivate_timer( wheel_timer );
 
 			// Release timer object.
 			timer_t::decrement_references( wheel_timer );
@@ -399,8 +401,11 @@ private :
 	//! Type of wheel timer.
 	struct wheel_timer_t : public timer_t
 	{
+		//! Special value as indicator of inactive timer.
+		static const unsigned int inactive = static_cast< unsigned int >( -1 );
+
 		//! Position in the wheel.
-		unsigned int m_position = 0;
+		unsigned int m_position = inactive;
 		//! Full rolls of wheel before execution of demand.
 		unsigned int m_full_rolls_left = 0;
 
@@ -478,16 +483,22 @@ private :
 	}
 
 	static bool
-	is_active_timer( const wheel_timer_t & timer )
+	is_active_timer( const wheel_timer_t * timer )
 	{
-		return timer.m_prev || timer.m_next;
+		return wheel_timer_t::inactive != timer->m_position;
 	}
 
 	static void
-	ensure_timer_not_activated( const wheel_timer_t & timer )
+	ensure_timer_not_activated( const wheel_timer_t * timer )
 	{
 		if( is_active_timer( timer ) )
 			throw std::runtime_error( "timer is already activated" );
+	}
+
+	static void
+	deactivate_timer( wheel_timer_t * timer )
+	{
+		timer->m_position = wheel_timer_t::inactive;
 	}
 
 	template< class DURATION >
@@ -608,6 +619,8 @@ private :
 				remove_timer_from_wheel( t );
 				if( t->m_period )
 					reschedule_periodic_timer( t );
+				else
+					deactivate_timer( t );
 
 				execute_demand( lock, t );
 
@@ -623,6 +636,7 @@ private :
 	reschedule_periodic_timer( wheel_timer_t * timer )
 	{
 		set_position_in_the_wheel( timer, timer->m_period );
+
 		// Reference count will be incremented during inserting
 		// to the wheel.
 		insert_demand_to_wheel( timer );
