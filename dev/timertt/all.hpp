@@ -538,6 +538,7 @@ private :
 			// There is a list of demands for the wheel position.
 			// New demand must be added to the end of that list.
 			wheel_timer->m_prev = item.m_tail;
+			item.m_tail->m_next = wheel_timer;
 			item.m_tail = wheel_timer;
 		}
 		else
@@ -591,7 +592,7 @@ private :
 				// of new time step.
 				tick_start_time = next_tick_time;
 				m_current_position += 1;
-				if( m_current_position > m_wheel_size )
+				if( m_current_position >= m_wheel_size )
 					m_current_position = 0;
 			}
 		}
@@ -682,9 +683,7 @@ private :
 				wheel_timer_t * t = timer;
 				timer = timer->m_next;
 
-				t->m_prev = nullptr;
-				t->m_next = nullptr;
-
+				deactivate_timer( t );
 				timer_t::decrement_references( t );
 			}
 		}
