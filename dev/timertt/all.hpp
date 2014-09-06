@@ -223,8 +223,8 @@ private :
 
 			if( m_shutdown )
 			{
-				break;
 				clear_all();
+				break;
 			}
 
 			if( m_demands.empty() )
