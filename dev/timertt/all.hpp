@@ -246,7 +246,7 @@ public :
 	//! Constructor with wheel size and granularity parameters.
 	timer_wheel_thread_t(
 		unsigned int wheel_size,
-		unsigned int granularity )
+		monotonic_clock_t::duration granularity )
 		:	timer_wheel_thread_t(
 				wheel_size,
 				granularity,
@@ -258,7 +258,7 @@ public :
 	//! Constructor with all parameters.
 	timer_wheel_thread_t(
 		unsigned int wheel_size,
-		unsigned int granularity,
+		monotonic_clock_t::duration granularity,
 		ERROR_LOGGER error_logger,
 		ACTOR_EXCEPTION_HANDLER exception_handler )
 		:	m_wheel_size( wheel_size )
@@ -332,7 +332,11 @@ public :
 		//! Action for the timer.
 		timer_action_t action )
 	{
-		activate( std::move( timer ), pause, std::move( action ) );
+		activate(
+				std::move( timer ),
+				pause,
+				monotonic_clock_t::duration::zero(),
+				std::move( action ) );
 	}
 
 	//! Activate timer and schedule it for execution.
@@ -356,13 +360,15 @@ public :
 		wheel_timer_t * wheel_timer = cast_timer_pointer( timer.get() );
 		ensure_timer_not_activated( *wheel_timer );
 
+		wheel_timer->m_action = std::move(action);
+
 		// Calculate the demand position in the wheel.
 		set_position_in_the_wheel(
 				wheel_timer,
 				duration_to_ticks( pause ) );
 
 		// Special calculations for the periodic demand.
-		if( period )
+		if( monotonic_clock_t::duration::zero() != period )
 			wheel_timer->m_period = duration_to_ticks( period );
 		else
 			wheel_timer->m_period = 0;
@@ -380,7 +386,7 @@ public :
 		std::lock_guard< std::mutex > lock( m_lock );
 
 		wheel_timer_t * wheel_timer = cast_timer_pointer( timer.get() );
-		if( is_active_timer( wheel_timer ) )
+		if( is_active_timer( *wheel_timer ) )
 		{
 			remove_timer_from_wheel( wheel_timer );
 
@@ -404,6 +410,9 @@ private :
 		 */
 		unsigned int m_period = 0;
 
+		//! Timer action.
+		timer_action_t m_action;
+
 		//! Previous demand in the list.
 		wheel_timer_t * m_prev = nullptr;
 		//! Next demand in the list.
@@ -416,7 +425,7 @@ private :
 		//! Head of the demand's list.
 		wheel_timer_t * m_head = nullptr;
 		//! Tail of the demand's list.
-		wheel_timer_t * m_tails = nullptr;
+		wheel_timer_t * m_tail = nullptr;
 	};
 
 	/*!
@@ -471,13 +480,13 @@ private :
 	static bool
 	is_active_timer( const wheel_timer_t & timer )
 	{
-		return timer->m_prev || timer->m_next;
+		return timer.m_prev || timer.m_next;
 	}
 
 	static void
 	ensure_timer_not_activated( const wheel_timer_t & timer )
 	{
-		if( !is_active_timer( timer ) )
+		if( is_active_timer( timer ) )
 			throw std::runtime_error( "timer is already activated" );
 	}
 
@@ -485,7 +494,12 @@ private :
 	unsigned int
 	duration_to_ticks( DURATION d ) const
 	{
-		unsigned int r = static_cast< unsigned int >( d / m_granularity );
+		auto d_units = 
+				std::chrono::duration_cast< monotonic_clock_t::duration >( d )
+				.count();
+		auto g_units = m_granularity.count();
+
+		unsigned int r = static_cast< unsigned int >( d_units / g_units );
 		if( !r )
 			r = 1;
 		return r;
@@ -497,7 +511,7 @@ private :
 		unsigned int pause_in_ticks ) const
 	{
 		wheel_timer->m_position =
-				( m_current_tick + pause_in_ticks ) % m_wheel_size;
+				( m_current_position + pause_in_ticks ) % m_wheel_size;
 		wheel_timer->m_full_rolls_left = pause_in_ticks / m_wheel_size;
 	}
 
@@ -533,7 +547,7 @@ private :
 			m_wheel[ wheel_timer->m_position ].m_head = wheel_timer->m_next;
 
 		if( wheel_timer->m_next )
-			m_wheel_timer->m_next->m_prev = wheel_timer->m_prev;
+			wheel_timer->m_next->m_prev = wheel_timer->m_prev;
 		else
 			m_wheel[ wheel_timer->m_position ].m_tail = wheel_timer->m_prev;
 
@@ -547,7 +561,7 @@ private :
 	{
 		std::unique_lock< std::mutex > lock( m_lock );
 
-		monotonic_clock_t tick_start_time = monotonic_clock_t::now();
+		auto tick_start_time = monotonic_clock_t::now();
 
 		while( !m_shutdown )
 		{
@@ -557,7 +571,7 @@ private :
 			auto next_tick_time = tick_start_time + m_granularity;
 			while( !m_shutdown && next_tick_time > monotonic_clock_t::now() )
 			{
-				m_condition.wait_until( next_tick_time );
+				m_condition.wait_until( lock, next_tick_time );
 			}
 
 			if( !m_shutdown )
@@ -588,7 +602,7 @@ private :
 			}
 			else
 			{
-				wheel_timer * t = timer;
+				wheel_timer_t * t = timer;
 				timer = timer->m_next;
 
 				remove_timer_from_wheel( t );
@@ -615,11 +629,38 @@ private :
 	}
 
 	void
+	execute_demand(
+		std::unique_lock< std::mutex > & lock,
+		wheel_timer_t * timer )
+	{
+		lock.unlock();
+
+		try
+		{
+			timer->m_action();
+		}
+		catch( const std::exception & x )
+		{
+			m_exception_handler( x );
+		}
+		catch( ... )
+		{
+			std::ostringstream ss;
+			ss << __FILE__ << "(" << __LINE__ 
+				<< "): an unknown exception from timer action";
+			m_error_logger( ss.str() );
+			std::abort();
+		}
+
+		lock.lock();
+	}
+
+	void
 	clear_all()
 	{
 		for( auto & item : m_wheel )
 		{
-			wheel_timer * timer = item.m_head;
+			wheel_timer_t * timer = item.m_head;
 			item = wheel_item_t();
 
 			while( timer )
