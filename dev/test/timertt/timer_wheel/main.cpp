@@ -35,7 +35,7 @@ UT_UNIT_TEST( several_full_rolls )
 					} );
 
 			std::this_thread::sleep_for( milliseconds( 250 ) );
-			tt.stop();
+			tt.shutdown_and_join();
 
 			UT_CHECK_EQ( v, "1111" );
 		},
@@ -71,7 +71,7 @@ UT_UNIT_TEST( demands_cleanup_on_shutdown )
 				tt.activate( tt.allocate(), seconds( 10 ), [d3]() {} );
 			}
 
-			tt.stop();
+			tt.shutdown_and_join();
 
 			UT_CHECK_EQ( dealloc_counter, -3 );
 		},
@@ -109,7 +109,7 @@ UT_UNIT_TEST( demands_deletion_during_processing )
 
 			std::this_thread::sleep_for( milliseconds( 250 ) );
 
-			tt.stop();
+			tt.shutdown_and_join();
 
 			UT_CHECK_EQ( events, 1 );
 		},
@@ -195,12 +195,59 @@ UT_UNIT_TEST( demands_deletion_during_processing_2 )
 
 			std::this_thread::sleep_for( milliseconds( 650 ) );
 
-			tt.stop();
+			tt.shutdown_and_join();
 
 			UT_CHECK_EQ( events, 12 );
 		},
 		1,
 		"demands_deletion_during_processing_2" );
+}
+
+UT_UNIT_TEST( shutdown_from_the_timer )
+{
+	run_with_time_limit(
+		[]()
+		{
+			timer_thread_t tt;
+
+			tt.start();
+
+			tt.activate( tt.allocate(), milliseconds( 25 ),
+				[&]() {
+					tt.shutdown();
+				} );
+
+			tt.join();
+		},
+		1,
+		"shutdown_from_the_timer" );
+}
+
+UT_UNIT_TEST( shutdown_with_restarts )
+{
+	run_with_time_limit(
+		[]()
+		{
+			timer_thread_t tt;
+
+			int events = 0;
+			for( int i = 0; i != 3; ++i )
+			{
+				tt.start();
+
+				tt.activate( tt.allocate(), milliseconds( 5 ),
+					[&]() {
+						++events;
+						tt.shutdown();
+					} );
+
+				tt.join();
+			}
+
+			UT_CHECK_EQ( events, 3 );
+		},
+		1,
+		"shutdown_from_the_timer" );
 }
 
 int main()
@@ -209,5 +256,7 @@ int main()
 	UT_RUN_UNIT_TEST( demands_cleanup_on_shutdown )
 	UT_RUN_UNIT_TEST( demands_deletion_during_processing )
 	UT_RUN_UNIT_TEST( demands_deletion_during_processing_2 )
+	UT_RUN_UNIT_TEST( shutdown_from_the_timer )
+	UT_RUN_UNIT_TEST( shutdown_with_restarts )
 }
 

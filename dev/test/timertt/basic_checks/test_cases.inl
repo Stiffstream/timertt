@@ -84,7 +84,7 @@ UT_UNIT_TEST( single_periodic )
 					} );
 
 			std::this_thread::sleep_for( milliseconds( 150 ) );
-			tt.stop();
+			tt.shutdown_and_join();
 
 			UT_CHECK_EQ( v, "1111" );
 		},
@@ -122,7 +122,7 @@ UT_UNIT_TEST( several_single_shots )
 
 			std::this_thread::sleep_for( milliseconds( 200 ) );
 
-			tt.stop();
+			tt.shutdown_and_join();
 
 			UT_CHECK_EQ( v, "(20)(40)(60)(80)(90)(100)(120)(140)" );
 		},
@@ -181,7 +181,7 @@ UT_UNIT_TEST( several_periodics )
 
 			std::this_thread::sleep_for( milliseconds( 1000 ) );
 
-			tt.stop();
+			tt.shutdown_and_join();
 
 			const std::string expected =
 					"(150/150)(200/200)(150/150)(200/200)(150/150)(500/150)"

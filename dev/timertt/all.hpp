@@ -273,7 +273,7 @@ public :
 	//! Destructor.
 	~timer_wheel_thread_t()
 	{
-		stop();
+		shutdown_and_join();
 	}
 
 	//! Start timer thread.
@@ -287,32 +287,53 @@ public :
 
 		if( m_thread )
 			throw std::runtime_error( "timer_wheel_thread is already started" );
+		else
+			m_shutdown = false;
 
-		m_thread.reset(
-				new std::thread(
-						std::bind( &timer_wheel_thread_t::body, this ) ) );
+		m_thread = std::make_shared< std::thread >(
+				std::bind( &timer_wheel_thread_t::body, this ) );
 	}
 
-	//! Finish timer thread and wait for completion.
+	//! Initiate shutdown for the timer thread without waiting for completion.
 	void
-	stop()
+	shutdown()
 	{
-		std::thread * t = nullptr;
+		std::lock_guard< std::mutex > lock( m_lock );
+
+		if( m_thread && !m_shutdown )
+		{
+			m_shutdown = true;
+			m_condition.notify_one();
+		}
+	}
+
+	//! Wait for completion of timer thread.
+	/*!
+	 * Method shutdown() must be called somewhere else.
+	 */
+	void
+	join()
+	{
+		std::shared_ptr< std::thread > t;
 		{
 			std::lock_guard< std::mutex > lock( m_lock );
-
-			if( m_thread )
-			{
-				m_shutdown = true;
-				t = m_thread.release();
-				m_condition.notify_one();
-			}
+			t = m_thread;
 		}
 		if( t )
 		{
-			std::unique_ptr< std::thread > destroyer{ t };
-			destroyer->join();
+			t->join();
+
+			std::lock_guard< std::mutex > lock( m_lock );
+			m_thread.reset();
 		}
+	}
+
+	//! Initiate shutdown and wait for completion.
+	void
+	shutdown_and_join()
+	{
+		shutdown();
+		join();
 	}
 
 	//! Create timer to be activated later.
@@ -495,7 +516,7 @@ private :
 	/*!
 	 * Created in start() method.
 	 */
-	std::unique_ptr< std::thread > m_thread;
+	std::shared_ptr< std::thread > m_thread;
 
 	//! Size of the wheel.
 	const unsigned int m_wheel_size;
