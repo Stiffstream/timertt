@@ -25,6 +25,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 namespace timertt
 {
@@ -358,9 +359,14 @@ public :
 			throw std::runtime_error( "timer_thread is not started" );
 
 		wheel_timer_t * wheel_timer = cast_timer_pointer( timer.get() );
-		ensure_timer_not_activated( wheel_timer );
+		ensure_timer_deactivated( wheel_timer );
 
 		wheel_timer->m_action = std::move(action);
+
+		// Timer must be taken under control.
+		timer_t::increment_references( wheel_timer );
+		// It is an active timer now.
+		wheel_timer->m_status = timer_status_t::active;
 
 		// Calculate the demand position in the wheel.
 		set_position_in_the_wheel(
@@ -386,26 +392,60 @@ public :
 		std::lock_guard< std::mutex > lock( m_lock );
 
 		wheel_timer_t * wheel_timer = cast_timer_pointer( timer.get() );
-		if( is_active_timer( wheel_timer ) )
+		if( timer_status_t::active == wheel_timer->m_status )
 		{
+			// This is normal active timer. It can be safely
+			// deactivated and destroyed.
 			remove_timer_from_wheel( wheel_timer );
 
-			deactivate_timer( wheel_timer );
+			wheel_timer->m_status = timer_status_t::deactivated;
 
 			// Release timer object.
 			timer_t::decrement_references( wheel_timer );
 		}
+		else if( timer_status_t::wait_for_execution == wheel_timer->m_status )
+		{
+			// This timer is in execution list right now.
+			// We can only changed its status.
+			// Final deactivation will be done after execution of
+			// timers actions.
+			wheel_timer->m_status = timer_status_t::wait_for_deactivation;
+		}
 	}
 
 private :
+	//! Status of wheel timer.
+	enum class timer_status_t : unsigned int
+	{
+		//! Timer is deactivated.
+		/*! It can be activated or destroyed safely. */
+		deactivated,
+		//! Timer is activated.
+		/*! It can be safely deactivated and destroyed. */
+		active,
+		//! Timer is in execution list and is waiting for execution.
+		/*!
+		 * It cannot be deactivated and destroyed right now.
+		 * Status of timer can only be changed to wait_for_deactivation.
+		 * And actual deactivation will be performed later, after
+		 * processing of execution list.
+		 */
+		wait_for_execution,
+		//! Timer must be deactivated after processing of execution list.
+		/*!
+		 * The only possible switch for the timer is to deactivated status.
+		 */
+		wait_for_deactivation
+	};
+
 	//! Type of wheel timer.
 	struct wheel_timer_t : public timer_t
 	{
-		//! Special value as indicator of inactive timer.
-		static const unsigned int inactive = static_cast< unsigned int >( -1 );
+		//! Status of the timer.
+		std::atomic< timer_status_t > m_status;
 
 		//! Position in the wheel.
-		unsigned int m_position = inactive;
+		unsigned int m_position = 0;
 		//! Full rolls of wheel before execution of demand.
 		unsigned int m_full_rolls_left = 0;
 
@@ -422,6 +462,11 @@ private :
 		wheel_timer_t * m_prev = nullptr;
 		//! Next demand in the list.
 		wheel_timer_t * m_next = nullptr;
+
+		wheel_timer_t()
+		{
+			m_status = timer_status_t::deactivated;
+		}
 	};
 
 	//! Type of wheel's item.
@@ -482,23 +527,11 @@ private :
 		return static_cast< wheel_timer_t * >(timer);
 	}
 
-	static bool
-	is_active_timer( const wheel_timer_t * timer )
-	{
-		return wheel_timer_t::inactive != timer->m_position;
-	}
-
 	static void
-	ensure_timer_not_activated( const wheel_timer_t * timer )
+	ensure_timer_deactivated( const wheel_timer_t * timer )
 	{
-		if( is_active_timer( timer ) )
-			throw std::runtime_error( "timer is already activated" );
-	}
-
-	static void
-	deactivate_timer( wheel_timer_t * timer )
-	{
-		timer->m_position = wheel_timer_t::inactive;
+		if( timer_status_t::deactivated != timer->m_status )
+			throw std::runtime_error( "timer is not in 'deactivated' state" );
 	}
 
 	template< class DURATION >
@@ -529,9 +562,6 @@ private :
 	void
 	insert_demand_to_wheel( wheel_timer_t * wheel_timer )
 	{
-		// Always increment reference count on this point.
-		timer_t::increment_references( wheel_timer );
-
 		wheel_item_t & item = m_wheel[ wheel_timer->m_position ];
 		if( item.m_head )
 		{
@@ -562,9 +592,6 @@ private :
 			wheel_timer->m_next->m_prev = wheel_timer->m_prev;
 		else
 			m_wheel[ wheel_timer->m_position ].m_tail = wheel_timer->m_prev;
-
-		wheel_timer->m_prev = nullptr;
-		wheel_timer->m_next = nullptr;
 	}
 
 	//! Thread body.
@@ -604,6 +631,22 @@ private :
 	process_current_wheel_position(
 		std::unique_lock< std::mutex > & lock )
 	{
+		wheel_timer_t * exec_list_head = make_exec_list();
+
+		if( exec_list_head )
+		{
+			exec_actions( lock, exec_list_head );
+
+			utilize_exec_list( exec_list_head );
+		}
+	}
+
+	wheel_timer_t *
+	make_exec_list()
+	{
+		wheel_timer_t * head = nullptr;
+		wheel_timer_t * tail = nullptr;
+
 		wheel_timer_t * timer = m_wheel[ m_current_position ].m_head;
 		while( timer && !m_shutdown )
 		{
@@ -618,16 +661,86 @@ private :
 				timer = timer->m_next;
 
 				remove_timer_from_wheel( t );
-				if( t->m_period )
-					reschedule_periodic_timer( t );
+				t->m_status = timer_status_t::wait_for_execution;
+
+				if( head )
+				{
+					tail->m_next = t;
+					t->m_prev = tail;
+					t->m_next = nullptr;
+					tail = t;
+				}
 				else
-					deactivate_timer( t );
+				{
+					head = tail = t;
+					t->m_prev = t->m_next = nullptr;
+				}
+			}
+		}
 
-				execute_demand( lock, t );
+		return head;
+	}
 
-				// Always decrement reference count on this point.
-				// If this is preriodic timer the reference is
-				// already incremented in reschedule_periodic_timer().
+	void
+	exec_actions(
+		//! Object lock.
+		//! This lock will be unlocked before execution of actions
+		//! and locked back after.
+		std::unique_lock< std::mutex > & lock,
+		//! Head of execution list.
+		//! Cannot be nullptr.
+		wheel_timer_t * head )
+	{
+		lock.unlock();
+
+		while( head )
+		{
+			try
+			{
+				// Status of timer can be changed. So it must be checked
+				// just before execution. If timer is waiting for
+				// deregistration it must not be executed.
+				if( timer_status_t::wait_for_execution == head->m_status )
+					head->m_action();
+			}
+			catch( const std::exception & x )
+			{
+				m_exception_handler( x );
+			}
+			catch( ... )
+			{
+				std::ostringstream ss;
+				ss << __FILE__ << "(" << __LINE__ 
+					<< "): an unknown exception from timer action";
+				m_error_logger( ss.str() );
+				std::abort();
+			}
+
+			head = head->m_next;
+		}
+
+		lock.lock();
+	}
+
+	void
+	utilize_exec_list(
+		//! Head of execution list.
+		//! Cannot be null.
+		wheel_timer_t * head )
+	{
+		while( head )
+		{
+			wheel_timer_t * t = head;
+			head = head->m_next;
+
+			// Actual periodic timer must be rescheduled.
+			if( timer_status_t::wait_for_execution == t->m_status &&
+					t->m_period )
+				reschedule_periodic_timer( t );
+			else
+			{
+				// Timer must be utilized.
+				t->m_status = timer_status_t::deactivated;
 				timer_t::decrement_references( t );
 			}
 		}
@@ -644,33 +757,6 @@ private :
 	}
 
 	void
-	execute_demand(
-		std::unique_lock< std::mutex > & lock,
-		wheel_timer_t * timer )
-	{
-		lock.unlock();
-
-		try
-		{
-			timer->m_action();
-		}
-		catch( const std::exception & x )
-		{
-			m_exception_handler( x );
-		}
-		catch( ... )
-		{
-			std::ostringstream ss;
-			ss << __FILE__ << "(" << __LINE__ 
-				<< "): an unknown exception from timer action";
-			m_error_logger( ss.str() );
-			std::abort();
-		}
-
-		lock.lock();
-	}
-
-	void
 	clear_all()
 	{
 		for( auto & item : m_wheel )
@@ -683,7 +769,7 @@ private :
 				wheel_timer_t * t = timer;
 				timer = timer->m_next;
 
-				deactivate_timer( t );
+				t->m_status = timer_status_t::deactivated;
 				timer_t::decrement_references( t );
 			}
 		}
@@ -692,8 +778,7 @@ private :
 
 template< typename ACTOR,
 	typename ERROR_LOGGER = default_error_logger,
-	typename ACTOR_EXCEPTION_HANDLER =
-			default_actor_exception_handler< std::uint_fast64_t > >
+	typename ACTOR_EXCEPTION_HANDLER = default_actor_exception_handler >
 class timer_thread_template_t
 {
 private :

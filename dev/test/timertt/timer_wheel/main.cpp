@@ -111,7 +111,7 @@ UT_UNIT_TEST( demands_deletion_during_processing )
 
 			tt.stop();
 
-			UT_CHECK_EQ( events, 4 );
+			UT_CHECK_EQ( events, 1 );
 		},
 		1,
 		"demands_deletion_during_processing" );
