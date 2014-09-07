@@ -543,7 +543,14 @@ private :
 				.count();
 		auto g_units = m_granularity.count();
 
-		unsigned int r = static_cast< unsigned int >( d_units / g_units );
+		unsigned int r = static_cast< unsigned int >(
+				/*
+				 * Add g_units/2 for rounding up.
+				 * For example, if d is 24ms and granularity is 10
+				 * it will be (24+5)=29, and result will be 2.
+				 * But if d is 25ms then (25+5)=30 and result will be 3.
+				 */
+				(d_units + g_units/2) / g_units );
 		if( !r )
 			r = 1;
 		return r;
@@ -648,7 +655,7 @@ private :
 		wheel_timer_t * tail = nullptr;
 
 		wheel_timer_t * timer = m_wheel[ m_current_position ].m_head;
-		while( timer && !m_shutdown )
+		while( timer )
 		{
 			if( timer->m_full_rolls_left )
 			{
@@ -736,7 +743,13 @@ private :
 			// Actual periodic timer must be rescheduled.
 			if( timer_status_t::wait_for_execution == t->m_status &&
 					t->m_period )
+			{
+				// m_prev and m_next in timer must be set to nullptr
+				// to be correctly reinitialized during insertion into wheel.
+				t->m_prev = t->m_next = nullptr;
+
 				reschedule_periodic_timer( t );
+			}
 			else
 			{
 				// Timer must be utilized.

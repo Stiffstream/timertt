@@ -116,9 +116,98 @@ UT_UNIT_TEST( demands_deletion_during_processing )
 		1,
 		"demands_deletion_during_processing" );
 }
+
+UT_UNIT_TEST( demands_deletion_during_processing_2 )
+{
+	run_with_time_limit(
+		[]()
+		{
+			timer_thread_t tt( 50, milliseconds(100) );
+
+			tt.start();
+
+			int events = 0;
+
+			auto d1 = tt.allocate();
+			auto d2 = tt.allocate();
+			auto d3 = tt.allocate();
+			auto d4 = tt.allocate();
+			auto d5 = tt.allocate();
+			auto d6 = tt.allocate();
+
+			// Must be executed only once.
+			// events += 1 (1).
+			tt.activate( d1, milliseconds( 110 ),
+				[&]() {
+					++events;
+					tt.deactivate( d1 );
+				} );
+			// Must be executed twice.
+			// Will be stopped by d3.
+			// events += 2 (3).
+			tt.activate( d2,
+					milliseconds( 110 ),
+					milliseconds( 100 ),
+					[&]() {
+						++events;
+					} );
+			// Must be executed twice.
+			// Will be stopped by itself.
+			// events += 2 (5).
+			tt.activate( d3,
+					milliseconds( 110 ),
+					milliseconds( 100 ),
+					[&]() {
+						++events;
+						static int calls = 0;
+						++calls;
+						if( 2 == calls )
+						{
+							tt.deactivate( d2 );
+							tt.deactivate( d3 );
+						}
+					} );
+			// Must be executed only once.
+			// events += 1 (6).
+			tt.activate( d4,
+					milliseconds( 110 ),
+					[&]() {
+						++events;
+						tt.deactivate( d5 );
+					} );
+			// Must not be executed at all.
+			// It will be stopped by d4 just before execution.
+			tt.activate( d5,
+					milliseconds( 110 ),
+					milliseconds( 110 ),
+					[&]() {
+						++events;
+						tt.deactivate( d6 );
+					} );
+			// Will be executed 6 times.
+			// events += 6 (12).
+			tt.activate( d6,
+					milliseconds( 110 ),
+					milliseconds( 110 ),
+					[&]() {
+						++events;
+					} );
+
+			std::this_thread::sleep_for( milliseconds( 650 ) );
+
+			tt.stop();
+
+			UT_CHECK_EQ( events, 12 );
+		},
+		1,
+		"demands_deletion_during_processing_2" );
+}
+
 int main()
 {
 	UT_RUN_UNIT_TEST( several_full_rolls )
 	UT_RUN_UNIT_TEST( demands_cleanup_on_shutdown )
 	UT_RUN_UNIT_TEST( demands_deletion_during_processing )
+	UT_RUN_UNIT_TEST( demands_deletion_during_processing_2 )
 }
+
