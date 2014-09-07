@@ -10,6 +10,10 @@
 
 using namespace std::chrono;
 
+typedef timertt::timer_wheel_thread_t<
+		timertt::default_error_logger,
+		timertt::default_actor_exception_handler > timer_thread_t;
+
 struct cfg_t
 {
 	unsigned int m_demand_count = 0;
@@ -87,15 +91,15 @@ void do_nothing()
 {
 }
 
-std::vector< timertt::timer_thread_t::id_t >
+std::vector< timertt::timer_holder_t >
 create_timers(
 	const cfg_t & cfg,
-	timertt::timer_thread_t & tt,
-	timertt::timer_thread_t::actor_t actor )
+	timer_thread_t & tt,
+	timertt::timer_action_t actor )
 {
 	std::vector< milliseconds > durations = create_durations( cfg );
 
-	std::vector< timertt::timer_thread_t::id_t > result;
+	std::vector< timertt::timer_holder_t > result;
 	result.reserve( cfg.m_demand_count );
 
 	std::cout << "Scheduling demands..." << std::endl;
@@ -104,7 +108,9 @@ create_timers(
 
 	for( auto pause : durations )
 	{
-		result.push_back( tt.schedule( pause, actor ) );
+		auto timer = tt.allocate();
+		result.push_back( timer );
+		tt.activate( timer, pause, actor );
 	}
 
 	benchmarker.finish_and_show_stats(
@@ -115,8 +121,8 @@ create_timers(
 }
 
 void
-erase_demands( timertt::timer_thread_t & tt,
-	std::vector< timertt::timer_thread_t::id_t > & timer_ids )
+erase_demands( timer_thread_t & tt,
+	std::vector< timertt::timer_holder_t > & timer_ids )
 {
 	std::cout << "Shuffling timer ids..." << std::endl;
 	std::shuffle( timer_ids.begin(), timer_ids.end(),
@@ -126,9 +132,9 @@ erase_demands( timertt::timer_thread_t & tt,
 	benchmarker_t benchmarker;
 	benchmarker.start();
 
-	for( auto id : timer_ids )
+	for( auto & id : timer_ids )
 	{
-		tt.erase( id );
+		tt.deactivate( id );
 	}
 
 	benchmarker.finish_and_show_stats(
@@ -142,11 +148,11 @@ int main( int argc, char ** argv )
 	{
 		cfg_t cfg = parse_args( argc, argv );
 
-		timertt::timer_thread_t tt;
+		timer_thread_t tt;
 		tt.start();
 
 		auto timer_ids = create_timers( cfg, tt,
-				timertt::timer_thread_t::actor_t( &do_nothing ) );
+				timertt::timer_action_t( &do_nothing ) );
 
 		erase_demands( tt, timer_ids );
 	}

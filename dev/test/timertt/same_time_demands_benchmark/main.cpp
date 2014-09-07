@@ -9,6 +9,10 @@
 
 using namespace std::chrono;
 
+typedef timertt::timer_wheel_thread_t<
+		timertt::default_error_logger,
+		timertt::default_actor_exception_handler > timer_thread_t;
+
 struct cfg_t
 {
 	unsigned int m_demand_count = 0;
@@ -69,7 +73,7 @@ parse_args( int argc, char ** argv )
 void
 do_benchmark( const cfg_t cfg )
 {
-	timertt::timer_thread_t tt;
+	timer_thread_t tt;
 	tt.start();
 
 	const auto pause = milliseconds{ 250 }; 
@@ -84,15 +88,15 @@ do_benchmark( const cfg_t cfg )
 
 	benchmarker_t benchmarker;
 
-	timertt::timer_thread_t::actor_t first = [&]() {
+	timertt::timer_action_t first = [&]() {
 			std::lock_guard< std::mutex > l( mutex );
 			benchmarker.start();
 			++counter;
 		};
-	timertt::timer_thread_t::actor_t common = [&counter]() {
+	timertt::timer_action_t common = [&counter]() {
 			++counter;
 		};
-	timertt::timer_thread_t::actor_t last = [&]() {
+	timertt::timer_action_t last = [&]() {
 			++counter;
 			benchmarker.finish_and_show_stats( counter, "invocations" );
 
@@ -106,10 +110,10 @@ do_benchmark( const cfg_t cfg )
 	else
 		demands -= 2;
 
-	tt.schedule( pause, first );
+	tt.activate( pause, first );
 	for( unsigned int i = 0; i != demands; ++i )
-		tt.schedule( pause, period, common );
-	tt.schedule( pause, last );
+		tt.activate( pause, period, common );
+	tt.activate( pause, last );
 
 	condition.wait( lock );
 }
