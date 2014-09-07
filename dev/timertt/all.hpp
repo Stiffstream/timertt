@@ -362,6 +362,26 @@ public :
 	}
 
 	//! Activate timer and schedule it for execution.
+	/*!
+	 * There is no need to preallocate timer object. It will
+	 * be allocated automatically, but not be shown to user.
+	 */
+	template< class DURATION_1 >
+	void
+	activate(
+		//! Pause for timer execution.
+		DURATION_1 pause,
+		//! Action for the timer.
+		timer_action_t action )
+	{
+		activate(
+				allocate(),
+				pause,
+				monotonic_clock_t::duration::zero(),
+				std::move( action ) );
+	}
+
+	//! Activate timer and schedule it for execution.
 	template< class DURATION_1, class DURATION_2 >
 	void
 	activate(
@@ -401,6 +421,24 @@ public :
 			wheel_timer->m_period = 0;
 
 		insert_demand_to_wheel( wheel_timer );
+	}
+
+	//! Activate timer and schedule it for execution.
+	/*!
+	 * There is no need to preallocate timer object. It will
+	 * be allocated automatically, but not be shown to user.
+	 */
+	template< class DURATION_1, class DURATION_2 >
+	void
+	activate(
+		//! Pause for timer execution.
+		DURATION_1 pause,
+		//! Repetition period.
+		DURATION_2 period,
+		//! Action for the timer.
+		timer_action_t action )
+	{
+		activate( allocate(), pause, period, std::move( action ) );
 	}
 
 	//! Deactivate timer and remove it from the wheel.

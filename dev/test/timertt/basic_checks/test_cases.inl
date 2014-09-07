@@ -193,6 +193,34 @@ UT_UNIT_TEST( several_periodics )
 		"several_periodics" );
 }
 
+UT_UNIT_TEST( anonymous_timers )
+{
+	run_with_time_limit(
+		[]()
+		{
+			timer_thread_t tt;
+
+			tt.start();
+
+			std::string v;
+
+			tt.activate( milliseconds( 20 ), [&v]() { v += "(s1)"; } );
+			tt.activate( milliseconds( 20 ),
+					milliseconds( 20 ),
+					[&v] () { v += "(s2)"; } );
+			tt.activate( milliseconds( 50 ),
+					[&v] () { v += "(s3)"; } );
+
+			std::this_thread::sleep_for( milliseconds( 100 ) );
+
+			tt.shutdown_and_join();
+
+			UT_CHECK_EQ( v, "(s1)(s2)(s2)(s3)(s2)(s2)" );
+		},
+		1,
+		"anonymous_timers" );
+}
+
 int main()
 {
 	UT_RUN_UNIT_TEST( no_demands )
@@ -201,5 +229,6 @@ int main()
 	UT_RUN_UNIT_TEST( single_periodic )
 	UT_RUN_UNIT_TEST( several_single_shots )
 	UT_RUN_UNIT_TEST( several_periodics )
+	UT_RUN_UNIT_TEST( anonymous_timers )
 }
 
