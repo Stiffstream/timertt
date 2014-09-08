@@ -367,11 +367,12 @@ protected :
 template<
 	typename ERROR_LOGGER,
 	typename ACTOR_EXCEPTION_HANDLER >
-class timer_wheel_thread_t
+class timer_wheel_thread_template_t
+	:	public details::thread_basic_t< ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >
 {
-	timer_wheel_thread_t( const timer_wheel_thread_t & ) = delete;
-	timer_wheel_thread_t &
-	operator=( const timer_wheel_thread_t & ) = delete;
+	//! An alias for base class.
+	using base_type_t = details::thread_basic_t<
+			ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >;
 
 public :
 	//! Default wheel size.
@@ -383,8 +384,8 @@ public :
 	default_granularity() { return std::chrono::milliseconds( 10 ); }
 
 	//! Default constructor.
-	timer_wheel_thread_t()
-		:	timer_wheel_thread_t(
+	timer_wheel_thread_template_t()
+		:	timer_wheel_thread_template_t(
 				default_wheel_size(),
 				default_granularity(),
 				ERROR_LOGGER(),
@@ -392,10 +393,10 @@ public :
 	{}
 
 	//! Constructor with wheel size and granularity parameters.
-	timer_wheel_thread_t(
+	timer_wheel_thread_template_t(
 		unsigned int wheel_size,
 		monotonic_clock_t::duration granularity )
-		:	timer_wheel_thread_t(
+		:	timer_wheel_thread_template_t(
 				wheel_size,
 				granularity,
 				ERROR_LOGGER(),
@@ -404,83 +405,22 @@ public :
 	}
 
 	//! Constructor with all parameters.
-	timer_wheel_thread_t(
+	timer_wheel_thread_template_t(
 		unsigned int wheel_size,
 		monotonic_clock_t::duration granularity,
 		ERROR_LOGGER error_logger,
 		ACTOR_EXCEPTION_HANDLER exception_handler )
-		:	m_wheel_size( wheel_size )
+		:	base_type_t( error_logger, exception_handler )
+		,	m_wheel_size( wheel_size )
 		,	m_granularity( granularity )
-		,	m_error_logger( error_logger )
-		,	m_exception_handler( exception_handler )
 	{
 		m_wheel.resize( wheel_size );
 	}
 
 	//! Destructor.
-	~timer_wheel_thread_t()
+	~timer_wheel_thread_template_t()
 	{
-		shutdown_and_join();
-	}
-
-	//! Start timer thread.
-	/*!
-	 * \throw std::runtime_error if thread is already started.
-	 */
-	void
-	start()
-	{
-		std::lock_guard< std::mutex > lock( m_lock );
-
-		if( m_thread )
-			throw std::runtime_error( "timer_wheel_thread is already started" );
-		else
-			m_shutdown = false;
-
-		m_thread = std::make_shared< std::thread >(
-				std::bind( &timer_wheel_thread_t::body, this ) );
-	}
-
-	//! Initiate shutdown for the timer thread without waiting for completion.
-	void
-	shutdown()
-	{
-		std::lock_guard< std::mutex > lock( m_lock );
-
-		if( m_thread && !m_shutdown )
-		{
-			m_shutdown = true;
-			m_condition.notify_one();
-		}
-	}
-
-	//! Wait for completion of timer thread.
-	/*!
-	 * Method shutdown() must be called somewhere else.
-	 */
-	void
-	join()
-	{
-		std::shared_ptr< std::thread > t;
-		{
-			std::lock_guard< std::mutex > lock( m_lock );
-			t = m_thread;
-		}
-		if( t )
-		{
-			t->join();
-
-			std::lock_guard< std::mutex > lock( m_lock );
-			m_thread.reset();
-		}
-	}
-
-	//! Initiate shutdown and wait for completion.
-	void
-	shutdown_and_join()
-	{
-		shutdown();
-		join();
+		this->shutdown_and_join();
 	}
 
 	//! Create timer to be activated later.
@@ -541,9 +481,9 @@ public :
 		//! Action for the timer.
 		timer_action_t action )
 	{
-		std::lock_guard< std::mutex > lock( m_lock );
+		std::lock_guard< std::mutex > lock( this->m_lock );
 
-		if( !m_thread )
+		if( !this->m_thread )
 			throw std::runtime_error( "timer_thread is not started" );
 
 		wheel_timer_t * wheel_timer = cast_timer_pointer( timer.get() );
@@ -595,7 +535,7 @@ public :
 		if( !timer )
 			return;
 
-		std::lock_guard< std::mutex > lock( m_lock );
+		std::lock_guard< std::mutex > lock( this->m_lock );
 
 		wheel_timer_t * wheel_timer = cast_timer_pointer( timer.get() );
 		if( timer_status_t::active == wheel_timer->m_status )
@@ -688,21 +628,6 @@ private :
 	 * \name Object's attributes.
 	 * \{
 	 */
-	//! Shutdown flag.
-	bool m_shutdown = false;
-
-	//! Object's lock.
-	std::mutex m_lock;
-
-	//! Condition variable for sleeping on the timer.
-	std::condition_variable m_condition;
-
-	//! Thread object.
-	/*!
-	 * Created in start() method.
-	 */
-	std::shared_ptr< std::thread > m_thread;
-
 	//! Size of the wheel.
 	const unsigned int m_wheel_size;
 
@@ -714,12 +639,6 @@ private :
 
 	//! The wheel data.
 	std::vector< wheel_item_t > m_wheel;
-
-	//! Error logger.
-	ERROR_LOGGER m_error_logger;
-
-	//! Exception handler.
-	ACTOR_EXCEPTION_HANDLER m_exception_handler;
 	/*!
 	 * \}
 	 */
@@ -813,22 +732,22 @@ private :
 	void
 	body()
 	{
-		std::unique_lock< std::mutex > lock( m_lock );
+		std::unique_lock< std::mutex > lock( this->m_lock );
 
 		auto tick_start_time = monotonic_clock_t::now();
 
-		while( !m_shutdown )
+		while( !this->m_shutdown )
 		{
 			process_current_wheel_position( lock );
 
 			// Wait for next time step.
 			auto next_tick_time = tick_start_time + m_granularity;
-			while( !m_shutdown && next_tick_time > monotonic_clock_t::now() )
+			while( !this->m_shutdown && next_tick_time > monotonic_clock_t::now() )
 			{
-				m_condition.wait_until( lock, next_tick_time );
+				this->m_condition.wait_until( lock, next_tick_time );
 			}
 
-			if( !m_shutdown )
+			if( !this->m_shutdown )
 			{
 				// Switch to next wheel position on the start
 				// of new time step.
@@ -920,14 +839,14 @@ private :
 			}
 			catch( const std::exception & x )
 			{
-				m_exception_handler( x );
+				this->m_exception_handler( x );
 			}
 			catch( ... )
 			{
 				std::ostringstream ss;
 				ss << __FILE__ << "(" << __LINE__ 
 					<< "): an unknown exception from timer action";
-				m_error_logger( ss.str() );
+				this->m_error_logger( ss.str() );
 				std::abort();
 			}
 
@@ -987,6 +906,11 @@ private :
 		}
 	}
 };
+
+//! An alias for default timer_wheel thread implementation.
+using timer_wheel_thread_t = timer_wheel_thread_template_t<
+		default_error_logger,
+		default_actor_exception_handler >;
 
 /*!
  * \brief A timer list thread template.

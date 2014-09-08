@@ -10,9 +10,7 @@
 
 using namespace std::chrono;
 
-typedef timertt::timer_wheel_thread_t<
-		timertt::default_error_logger,
-		timertt::default_actor_exception_handler > timer_thread_t;
+typedef timertt::timer_wheel_thread_t timer_thread_t;
 
 struct cfg_t
 {
