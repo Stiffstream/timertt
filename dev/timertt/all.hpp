@@ -1091,7 +1091,7 @@ public :
 
 		// Timer object must be correctly (re)initialized.
 		list_timer->m_action = std::move( action );
-		list_timer->m_when = monotonic_clock_t::now();
+		list_timer->m_when = monotonic_clock_t::now() + pause;
 		list_timer->m_period = std::chrono::duration_cast<
 				monotonic_clock_t::duration >( period );
 
@@ -1101,6 +1101,10 @@ public :
 		list_timer->m_status = timer_status_t::active;
 
 		insert_timer_to_list( list_timer );
+		if( list_timer == m_head )
+			// Time point for the head list item changed.
+			// Work thread must handle this.
+			m_condition.notify_one();
 	}
 
 	//! Activate timer and schedule it for execution.
@@ -1253,7 +1257,11 @@ private :
 				// This is a point to insertion (new timer must be
 				// next to 'point' item).
 				timer->m_next = point->m_next;
+
+				if( point->m_next )
+					point->m_next->m_prev = timer;
 				point->m_next = timer;
+
 				timer->m_prev = point;
 
 				if( point == m_tail )
@@ -1266,7 +1274,8 @@ private :
 
 		// Timer must go to the head of the list.
 		timer->m_prev = nullptr;
-		if( nullptr != (timer->m_next = m_head) )
+		timer->m_next = m_head;
+		if( m_head )
 			m_head->m_prev = timer;
 		m_head = timer;
 
@@ -1323,13 +1332,14 @@ private :
 	sleep_for_next_event(
 		std::unique_lock< std::mutex > & lock )
 	{
-		if( m_head )
-		{
-			auto time_point = m_head->m_when;
-			m_condition.wait_until( lock, time_point );
-		}
-		else
-			m_condition.wait( lock );
+		if( !m_shutdown )
+			if( m_head )
+			{
+				auto time_point = m_head->m_when;
+				m_condition.wait_until( lock, time_point );
+			}
+			else
+				m_condition.wait( lock );
 	}
 
 	list_timer_t *
@@ -1344,6 +1354,8 @@ private :
 		{
 			list_timer_t * t = m_head;
 			m_head = m_head->m_next;
+			if( m_head )
+				m_head->m_prev = nullptr;
 
 			if( tail )
 			{
@@ -1425,7 +1437,7 @@ private :
 			if( timer_status_t::wait_for_execution == t->m_status &&
 					monotonic_clock_t::duration::zero() != t->m_period )
 			{
-				t->m_when = t->m_when + t->m_period;
+				t->m_when += t->m_period;
 				t->m_status = timer_status_t::active;
 
 				insert_timer_to_list( t );
