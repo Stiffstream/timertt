@@ -1020,7 +1020,7 @@ public :
 	//! Destructor.
 	~timer_list_thread_template_t()
 	{
-		shutdown_and_join();
+		this->shutdown_and_join();
 	}
 
 	//! Create timer to be activated later.
@@ -1081,9 +1081,9 @@ public :
 		//! Action for the timer.
 		timer_action_t action )
 	{
-		std::lock_guard< std::mutex > lock( m_lock );
+		std::lock_guard< std::mutex > lock( this->m_lock );
 
-		if( !m_thread )
+		if( !this->m_thread )
 			throw std::runtime_error( "timer_thread is not started" );
 
 		list_timer_t * list_timer = cast_timer_pointer( timer.get() );
@@ -1104,7 +1104,7 @@ public :
 		if( list_timer == m_head )
 			// Time point for the head list item changed.
 			// Work thread must handle this.
-			m_condition.notify_one();
+			this->m_condition.notify_one();
 	}
 
 	//! Activate timer and schedule it for execution.
@@ -1134,7 +1134,7 @@ public :
 		if( !timer )
 			return;
 
-		std::lock_guard< std::mutex > lock( m_lock );
+		std::lock_guard< std::mutex > lock( this->m_lock );
 
 		list_timer_t * list_timer = cast_timer_pointer( timer.get() );
 		if( timer_status_t::active == list_timer->m_status )
@@ -1197,7 +1197,7 @@ private :
 		/*!
 		 * Zero means that demand is single shot.
 		 */
-		monotonic_clock_t::duration m_period = 0;
+		monotonic_clock_t::duration m_period;
 
 		//! Timer action.
 		timer_action_t m_action;
@@ -1302,9 +1302,9 @@ private :
 	virtual void
 	body() override
 	{
-		std::unique_lock< std::mutex > lock( m_lock );
+		std::unique_lock< std::mutex > lock( this->m_lock );
 
-		while( !m_shutdown )
+		while( !this->m_shutdown )
 		{
 			process_ready_to_exec_timers( lock );
 
@@ -1332,14 +1332,14 @@ private :
 	sleep_for_next_event(
 		std::unique_lock< std::mutex > & lock )
 	{
-		if( !m_shutdown )
+		if( !this->m_shutdown )
 			if( m_head )
 			{
 				auto time_point = m_head->m_when;
-				m_condition.wait_until( lock, time_point );
+				this->m_condition.wait_until( lock, time_point );
 			}
 			else
-				m_condition.wait( lock );
+				this->m_condition.wait( lock );
 	}
 
 	list_timer_t *
@@ -1405,14 +1405,14 @@ private :
 			}
 			catch( const std::exception & x )
 			{
-				m_exception_handler( x );
+				this->m_exception_handler( x );
 			}
 			catch( ... )
 			{
 				std::ostringstream ss;
 				ss << __FILE__ << "(" << __LINE__ 
 					<< "): an unknown exception from timer action";
-				m_error_logger( ss.str() );
+				this->m_error_logger( ss.str() );
 				std::abort();
 			}
 
