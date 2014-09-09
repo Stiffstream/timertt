@@ -740,6 +740,13 @@ private :
 		{
 			process_current_wheel_position( lock );
 
+			// After processing all current demands and rescheduling
+			// all periodic demands the current_position must be
+			// advanced.
+			m_current_position += 1;
+			if( m_current_position >= m_wheel_size )
+				m_current_position = 0;
+
 			// Wait for next time step.
 			auto next_tick_time = tick_start_time + m_granularity;
 			while( !this->m_shutdown && next_tick_time > monotonic_clock_t::now() )
@@ -749,12 +756,7 @@ private :
 
 			if( !this->m_shutdown )
 			{
-				// Switch to next wheel position on the start
-				// of new time step.
 				tick_start_time = next_tick_time;
-				m_current_position += 1;
-				if( m_current_position >= m_wheel_size )
-					m_current_position = 0;
 			}
 		}
 

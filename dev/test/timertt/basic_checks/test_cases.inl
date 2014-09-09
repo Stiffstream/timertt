@@ -204,14 +204,14 @@ UT_UNIT_TEST( anonymous_timers )
 
 			std::string v;
 
-			tt.activate( milliseconds( 20 ), [&v]() { v += "(s1)"; } );
-			tt.activate( milliseconds( 20 ),
-					milliseconds( 20 ),
+			tt.activate( milliseconds( 40 ), [&v]() { v += "(s1)"; } );
+			tt.activate( milliseconds( 40 ),
+					milliseconds( 40 ),
 					[&v] () { v += "(s2)"; } );
-			tt.activate( milliseconds( 50 ),
+			tt.activate( milliseconds( 100 ),
 					[&v] () { v += "(s3)"; } );
 
-			std::this_thread::sleep_for( milliseconds( 90 ) );
+			std::this_thread::sleep_for( milliseconds( 190 ) );
 
 			tt.shutdown_and_join();
 
