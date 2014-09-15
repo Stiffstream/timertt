@@ -1501,6 +1501,11 @@ public :
 		timer_action_t action )
 	{
 		std::lock_guard< std::mutex > lock( this->m_lock );
+#if 0
+std::cout << "*** activate: " << timer.get() << " ("
+<< std::chrono::duration_cast< std::chrono::milliseconds >(pause).count()
+<< ")" << std::endl;
+#endif
 
 		if( !this->m_thread )
 			throw std::runtime_error( "timer_thread is not started" );
@@ -1524,6 +1529,13 @@ public :
 			// Time point for the head list item changed.
 			// Work thread must handle this.
 			this->m_condition.notify_one();
+
+#if 0
+std::cout << "activate: " << heap_timer << " (";
+for( auto t : m_heap )
+std::cout << t << "-";
+std::cout << ")" << std::endl;
+#endif
 	}
 
 	//! Activate timer and schedule it for execution.
@@ -1675,7 +1687,7 @@ private :
 		// Process timers in loop until there are elapsed timers.
 		auto now = monotonic_clock_t::now();
 		while( !this->m_shutdown && !heap_empty() &&
-				now < heap_head()->m_when )
+				now > heap_head()->m_when )
 		{
 			m_timer_in_processing = heap_head();
 			heap_remove( m_timer_in_processing );
@@ -1791,10 +1803,19 @@ private :
 		while( 1 != timer->m_position )
 		{
 			auto parent = heap_item( timer->m_position / 2 );
+#if 0
+std::cout << " timer: " << timer << ", parent: " << parent << std::endl;
+#endif
 			if( parent->m_when > timer->m_when )
 			{
+#if 0
+std::cout << "swapping 1(" << timer->m_position << ":" << parent->m_position << ")" << std::endl;
+#endif
 				// timer must be heap-up on the place of the parent node.
 				heap_swap( timer, parent );
+#if 0
+std::cout << "swapping 2(" << timer->m_position << ":" << parent->m_position << ")" << std::endl;
+#endif
 			}
 			else
 				// There is no need to modify heap structure anymore.
@@ -1823,15 +1844,25 @@ private :
 				auto left_index = last_item->m_position * 2;
 				auto right_index = left_index + 1;
 				auto min_index = last_item->m_position;
+#if 0
+std::cout << " -> " << min_index << ", (" << left_index << ","
+<< right_index << ")" << std::endl;
+#endif
 
 				if( left_index <= m_heap.size() &&
-						heap_item( left_index ) < heap_item( min_index ) )
+						heap_item( left_index )->m_when <=
+								heap_item( min_index )->m_when )
 					min_index = left_index;
 
 				if( right_index <= m_heap.size() &&
-						heap_item( right_index ) < heap_item( min_index ) )
+						heap_item( right_index )->m_when <=
+								heap_item( min_index )->m_when )
 					min_index = right_index;
 
+#if 0
+std::cout << " --> " << min_index << ", (" << left_index << ","
+<< right_index << ")" << std::endl;
+#endif
 				if( min_index != last_item->m_position )
 					heap_swap( last_item, heap_item( min_index ) );
 				else
@@ -1839,14 +1870,32 @@ private :
 					break;
 			}
 		}
+#if 0
+std::cout << "after remove(" << timer << "): " << " (";
+for( auto t : m_heap )
+std::cout << t << "-";
+std::cout << ")" << std::endl;
+#endif
 	}
 
 	//! Swap two heap nodes.
 	void
 	heap_swap( heap_timer_t * a, heap_timer_t * b )
 	{
-		m_heap[ a->m_position ] = b;
-		m_heap[ b->m_position ] = a;
+#if 0
+std::cout << "before swap: " << " (";
+for( auto t : m_heap )
+std::cout << t << "-";
+std::cout << ")" << std::endl;
+#endif
+		m_heap[ a->m_position - 1 ] = b;
+		m_heap[ b->m_position - 1 ] = a;
+#if 0
+std::cout << " after swap: " << " (";
+for( auto t : m_heap )
+std::cout << t << "-";
+std::cout << ")" << std::endl;
+#endif
 
 		std::swap( a->m_position, b->m_position );
 	}
