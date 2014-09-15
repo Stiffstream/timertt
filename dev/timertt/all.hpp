@@ -1570,21 +1570,26 @@ std::cout << ")" << std::endl;
 		auto heap_timer = timer.cast_to< heap_timer_t >();
 		if( !heap_timer->deactivated() )
 		{
-			// Timer must be marked as deactivated regardless
-			// is it in processing now or not.
-			heap_timer->deactivate();
-
 			// If this timer is not in processing now it can
 			// be safely destroyed.
 			if( heap_timer != m_timer_in_processing )
 			{
 				heap_remove( heap_timer );
 
+				// We can deactivate timer only after removing.
+				// Because deactivation drops actual timer position.
+				heap_timer->deactivate();
+
 				// Release timer object.
 				timer_t::decrement_references( heap_timer );
 			}
-			// Otherwise m_timer_in_processing will be destroyed
-			// after end of timer action processing.
+			else
+			{
+				// Otherwise m_timer_in_processing will be destroyed
+				// after end of timer action processing.
+				// But it must be deactivated right now.
+				heap_timer->deactivate();
+			}
 		}
 	}
 
