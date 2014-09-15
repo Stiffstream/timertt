@@ -161,6 +161,16 @@ public :
 	{
 		return m_timer;
 	}
+
+	template< class T >
+	T * 
+	cast_to()
+	{
+		if( !m_timer )
+			throw std::runtime_error( "timer is nullptr" );
+
+		return static_cast< T * >(m_timer);
+	}
 	/*!
 	 * \}
 	 */
@@ -486,7 +496,7 @@ public :
 		if( !this->m_thread )
 			throw std::runtime_error( "timer_thread is not started" );
 
-		wheel_timer_t * wheel_timer = cast_timer_pointer( timer.get() );
+		auto * wheel_timer = timer.cast_to< wheel_timer_t >();
 		ensure_timer_deactivated( wheel_timer );
 
 		wheel_timer->m_action = std::move(action);
@@ -537,7 +547,7 @@ public :
 
 		std::lock_guard< std::mutex > lock( this->m_lock );
 
-		wheel_timer_t * wheel_timer = cast_timer_pointer( timer.get() );
+		auto wheel_timer = timer.cast_to< wheel_timer_t >();
 		if( timer_status_t::active == wheel_timer->m_status )
 		{
 			// This is normal active timer. It can be safely
@@ -642,15 +652,6 @@ private :
 	/*!
 	 * \}
 	 */
-
-	static wheel_timer_t *
-	cast_timer_pointer( timer_t * timer )
-	{
-		if( !timer )
-			throw std::runtime_error( "timer is nullptr" );
-
-		return static_cast< wheel_timer_t * >(timer);
-	}
 
 	static void
 	ensure_timer_deactivated( const wheel_timer_t * timer )
@@ -1012,7 +1013,7 @@ public :
 		if( !this->m_thread )
 			throw std::runtime_error( "timer_thread is not started" );
 
-		list_timer_t * list_timer = cast_timer_pointer( timer.get() );
+		auto list_timer = timer.cast_to< list_timer_t >();
 		ensure_timer_deactivated( list_timer );
 
 		// Timer object must be correctly (re)initialized.
@@ -1062,7 +1063,7 @@ public :
 
 		std::lock_guard< std::mutex > lock( this->m_lock );
 
-		list_timer_t * list_timer = cast_timer_pointer( timer.get() );
+		auto list_timer = timer.cast_to< list_timer_t >();
 		if( timer_status_t::active == list_timer->m_status )
 		{
 			// This is normal active timer. It can be safely
@@ -1152,17 +1153,6 @@ private :
 	 * \}
 	 */
 
-//FIXME: could be moved into details namespace as free template function.
-	static list_timer_t *
-	cast_timer_pointer( timer_t * timer )
-	{
-		if( !timer )
-			throw std::runtime_error( "timer is nullptr" );
-
-		return static_cast< list_timer_t * >(timer);
-	}
-
-//FIXME: may be it could be moved into details namespace as free template function.
 	static void
 	ensure_timer_deactivated( const list_timer_t * timer )
 	{
