@@ -1388,5 +1388,479 @@ using timer_list_thread_t = timer_list_thread_template_t<
 		default_error_logger,
 		default_actor_exception_handler >;
 
+/*!
+ * \brief A timer heap thread template.
+ */
+template<
+	typename ERROR_LOGGER,
+	typename ACTOR_EXCEPTION_HANDLER >
+class timer_heap_thread_template_t
+	:	public details::thread_basic_t< ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >
+{
+	//! An alias for base class.
+	using base_type_t = details::thread_basic_t<
+			ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >;
+
+public :
+	//! Default initial capacity of heap-array.
+	inline static
+	std::size_t default_initial_heap_capacity()
+	{
+		return 64;
+	}
+
+	//! Default constructor.
+	timer_heap_thread_template_t()
+		:	timer_heap_thread_template_t(
+				default_initial_heap_capacity(),
+				ERROR_LOGGER(),
+				ACTOR_EXCEPTION_HANDLER() )
+	{}
+
+	//! Constructor to specify initial capacity of heap-array.
+	timer_heap_thread_template_t(
+		std::size_t initial_heap_capacity )
+		:	timer_heap_thread_template_t(
+				initial_heap_capacity,
+				ERROR_LOGGER(),
+				ACTOR_EXCEPTION_HANDLER() )
+	{}
+
+	//! Constructor with all parameters.
+	timer_heap_thread_template_t(
+		std::size_t initial_heap_capacity,
+		ERROR_LOGGER error_logger,
+		ACTOR_EXCEPTION_HANDLER exception_handler )
+		:	base_type_t( error_logger, exception_handler )
+	{
+		m_heap.reserve( initial_heap_capacity );
+	}
+
+	//! Destructor.
+	~timer_heap_thread_template_t()
+	{
+		this->shutdown_and_join();
+	}
+
+	//! Create timer to be activated later.
+	timer_holder_t
+	allocate()
+	{
+		return timer_holder_t( new heap_timer_t() );
+	}
+
+	//! Activate timer and schedule it for execution.
+	template< class DURATION_1 >
+	void
+	activate(
+		//! Timer to be activated.
+		timer_holder_t timer,
+		//! Pause for timer execution.
+		DURATION_1 pause,
+		//! Action for the timer.
+		timer_action_t action )
+	{
+		activate(
+				std::move( timer ),
+				pause,
+				monotonic_clock_t::duration::zero(),
+				std::move( action ) );
+	}
+
+	//! Activate timer and schedule it for execution.
+	/*!
+	 * There is no need to preallocate timer object. It will
+	 * be allocated automatically, but not be shown to user.
+	 */
+	template< class DURATION_1 >
+	void
+	activate(
+		//! Pause for timer execution.
+		DURATION_1 pause,
+		//! Action for the timer.
+		timer_action_t action )
+	{
+		activate(
+				allocate(),
+				pause,
+				monotonic_clock_t::duration::zero(),
+				std::move( action ) );
+	}
+
+	//! Activate timer and schedule it for execution.
+	template< class DURATION_1, class DURATION_2 >
+	void
+	activate(
+		//! Timer to be activated.
+		timer_holder_t timer,
+		//! Pause for timer execution.
+		DURATION_1 pause,
+		//! Repetition period.
+		DURATION_2 period,
+		//! Action for the timer.
+		timer_action_t action )
+	{
+		std::lock_guard< std::mutex > lock( this->m_lock );
+
+		if( !this->m_thread )
+			throw std::runtime_error( "timer_thread is not started" );
+
+		auto heap_timer = timer.cast_to< heap_timer_t >();
+		ensure_timer_deactivated( heap_timer );
+
+		// Timer object must be correctly (re)initialized.
+		heap_timer->m_action = std::move( action );
+		heap_timer->m_when = monotonic_clock_t::now() + pause;
+		heap_timer->m_period = std::chrono::duration_cast<
+				monotonic_clock_t::duration >( period );
+
+		// Timer must be taken under control.
+		timer_t::increment_references( heap_timer );
+		// It is an active timer now.
+		heap_timer->m_status = timer_status_t::active;
+
+		heap_add( heap_timer );
+		if( heap_timer == head_head() )
+			// Time point for the head list item changed.
+			// Work thread must handle this.
+			this->m_condition.notify_one();
+	}
+
+	//! Activate timer and schedule it for execution.
+	/*!
+	 * There is no need to preallocate timer object. It will
+	 * be allocated automatically, but not be shown to user.
+	 */
+	template< class DURATION_1, class DURATION_2 >
+	void
+	activate(
+		//! Pause for timer execution.
+		DURATION_1 pause,
+		//! Repetition period.
+		DURATION_2 period,
+		//! Action for the timer.
+		timer_action_t action )
+	{
+		activate( allocate(), pause, period, std::move( action ) );
+	}
+
+	//! Deactivate timer and remove it from the list.
+	void
+	deactivate(
+		//! Timer to be deactivated.
+		timer_holder_t timer )
+	{
+		if( !timer )
+			return;
+
+		std::lock_guard< std::mutex > lock( this->m_lock );
+
+		auto heap_timer = timer.cast_to< heap_timer_t >();
+		if( !heap_timer->deactivated() )
+		{
+			// Timer must be marked as deactivated regardless
+			// is it in processing now or not.
+			heap_timer->deactivate();
+
+			// If this timer is not in processing now it can
+			// be safely destroyed.
+			if( heap_timer != m_timer_in_processing )
+			{
+				heap_remove( heap_timer );
+
+				// Release timer object.
+				timer_t::decrement_references( list_timer );
+			}
+			// Otherwise m_timer_in_processing will be destroyed
+			// after end of timer action processing.
+		}
+	}
+
+private :
+	//! Type of heap timer.
+	struct heap_timer_t : public timer_t
+	{
+		//! A special value which means that timer is deactivated.
+		/*!
+		 * This value is illegal index in heap-array because
+		 * position numbers in heap-array are started from 1, not from 0.
+		 */
+		static const unsigned int deactivation_indicator = 0;
+
+		//! Time of execution for this timer.
+		monotonic_clock_t::time_point m_when;
+
+		//! Period in ticks.
+		/*!
+		 * Zero means that demand is single shot.
+		 */
+		monotonic_clock_t::duration m_period;
+
+		//! Timer action.
+		timer_action_t m_action;
+
+		//! Position in the heap-array.
+		unsigned int m_position = deactivation_indicator;
+
+		//! Is timer deactivated.
+		bool
+		deactivated() const 
+		{
+			return deactivation_indicator == m_position;
+		}
+
+		//! Set deactivation indicator on.
+		void
+		deactivate()
+		{
+			m_position = deactivation_indicator;
+		}
+
+		//! Is this is single shot timer?
+		bool
+		single_shot() const
+		{
+			return monotonic_clock_t::duration::zero() == m_period;
+		}
+	};
+
+	/*!
+	 * \name Object's attributes.
+	 * \{
+	 */
+	//! Array for holding heap data structure.
+	std::vector< heap_timer_t > m_heap;
+
+	//! Timer which is currently in processing.
+	heap_timer_t * m_timer_in_processing = nullptr;
+	/*!
+	 * \}
+	 */
+
+	/*!
+	 * \brief Hard check for deactivation state of the timer.
+	 *
+	 * \throw std::runtimer_error if timer is not deactivated.
+	 */
+	static void
+	ensure_timer_deactivated( const heap_timer_t * timer )
+	{
+		if( !timer->deactivated() )
+			throw std::runtime_error( "timer is not in 'deactivated' state" );
+	}
+
+	//! Thread body.
+	virtual void
+	body() override
+	{
+		std::unique_lock< std::mutex > lock( this->m_lock );
+
+		while( !this->m_shutdown )
+		{
+			process_ready_to_exec_timers( lock );
+
+			sleep_for_next_event( lock );
+		}
+
+		clear_all();
+	}
+
+//FIXME: make more detailed description of this method.
+//Especially that object is unlocked for execution for every demands.
+	//! Processing all elapsed timers.
+	void
+	process_ready_to_exec_timers(
+		std::unique_lock< std::mutex > & lock )
+	{
+		// Process timers in loop until there are elapsed timers.
+		auto now = monotonic_clock_t::now();
+		while( !this->m_shutdown && !heap_empty() &&
+				now < heap_head()->m_when )
+		{
+			m_timer_in_processing = heap_head();
+			heap_remove( m_timer_in_processing );
+
+			execute_timer_in_processing( lock );
+
+			// If timer has become deactive it must be removed even
+			// it is periodic timer.
+			if( m_timer_in_processing->deactivated() ||
+					m_timer_in_processing->single_shot() )
+			{
+				m_timer_in_processing->deactivate();
+				timer_t::decrement_references( m_timer_in_processing );
+			}
+			else
+			{
+				// This is active periodic timer and it must be resheduled.
+				m_timer_in_processing->m_when +=
+						m_timer_in_processing->m_period;
+				heap_add( m_timer_in_processing );
+			}
+
+			m_timer_in_processing = nullptr;
+		}
+	}
+
+	void
+	sleep_for_next_event(
+		std::unique_lock< std::mutex > & lock )
+	{
+		if( !this->m_shutdown )
+			if( !head_empty() )
+			{
+				auto time_point = heap_head()->m_when;
+				this->m_condition.wait_until( lock, time_point );
+			}
+			else
+				this->m_condition.wait( lock );
+	}
+
+	void
+	execute_timer_in_processing(
+		//! Object lock.
+		//! This lock will be unlocked before execution of actions
+		//! and locked back after.
+		std::unique_lock< std::mutex > & lock )
+	{
+		lock.unlock();
+
+		try
+		{
+			m_timer_in_processing->m_action();
+		}
+		catch( const std::exception & x )
+		{
+			this->m_exception_handler( x );
+		}
+		catch( ... )
+		{
+			std::ostringstream ss;
+			ss << __FILE__ << "(" << __LINE__ 
+				<< "): an unknown exception from timer action";
+			this->m_error_logger( ss.str() );
+			std::abort();
+		}
+
+		lock.lock();
+	}
+
+	//! Clear all timer demands.
+	void
+	clear_all()
+	{
+		for( auto t : m_heap )
+		{
+			t->deactivate();
+			timer_t::decrement_references( t );
+		}
+
+		m_heap.clear();
+
+		m_timer_in_processing = nullptr;
+	}
+
+	//! Is heap data structure empty?
+	bool
+	heap_empty() const
+	{
+		return m_heap.empty();
+	}
+
+	//! Get the minimal timer.
+	/*!
+	 * \attention This method must be called only on non-empty heap.
+	 */
+	heap_timer_t *
+	heap_head() const
+	{
+		return m_heap.front();
+	}
+
+	//! Add new timer to the heap data structure.
+	void
+	heap_add( heap_timer_t * timer )
+	{
+		timer->m_position = m_heap.size() + 1;
+		m_heap.push_back( timer );
+
+		while( 1 != timer->m_position )
+		{
+			auto parent = heap_item( timer->m_position / 2 );
+			if( parent->m_when > timer->m_when )
+			{
+				// timer must be heap-up on the place of the parent node.
+				heap_swap( timer, parent );
+			}
+			else
+				// There is no need to modify heap structure anymore.
+				break;
+		}
+	}
+
+	//! Remove timer from the heap data structure.
+	void
+	heap_remove( heap_timer_t * timer )
+	{
+		if( timer->m_position == m_heap.size() )
+			// A special case: timer to remove is a last added item
+			// in the heap. It could be simply removed from heap
+			// without any other actions.
+			m_heap.pop_back();
+		else
+		{
+			auto last_item = m_heap.back();
+			heap_swap( timer, last_item );
+			m_heap.pop_back();
+
+			// last_item must be heap-down to the appropriate place.
+			while( true )
+			{
+				auto left_index = last_item->m_position * 2;
+				auto right_index = left_index + 1;
+				auto min_index = last_item->m_position;
+
+				if( left_index <= m_heap.size() &&
+						heap_item( left_index ) < heap_item( min_index ) )
+					min_index = left_index;
+
+				if( right_index <= m_heap.size() &&
+						heap_item( right_index ) < heap_item( min_index ) )
+					min_index = right_index;
+
+				if( min_index != last_item->m_position )
+					heap_swap( last_item, heap_item( min_index ) );
+				else
+					// Heap structure is correct.
+					break;
+			}
+		}
+	}
+
+	//! Swap two heap nodes.
+	void
+	heap_swap( heap_timer_t * a, heap_timer_t * b )
+	{
+		m_heap[ a->m_position ] = b;
+		m_heap[ b->m_position ] = a;
+
+		std::swap( a->m_position, b->m_position );
+	}
+
+	//! Get timer by it index.
+	/*!
+	 * This accessor work with respect that positions are started from 1.
+	 */
+	heap_timer_t *
+	heap_item( std::size_t position ) const
+	{
+		return m_heap[ position - 1 ];
+	}
+};
+
+//! An alias for default timer_list thread implementation.
+using timer_heap_thread_t = timer_heap_thread_template_t<
+		default_error_logger,
+		default_actor_exception_handler >;
 } /* namespace timertt */
 
