@@ -1516,11 +1516,11 @@ public :
 
 		// Timer must be taken under control.
 		timer_t::increment_references( heap_timer );
-		// It is an active timer now.
-		heap_timer->m_status = timer_status_t::active;
 
+		// Timer will be marked as active during insertion into
+		// heap structure.
 		heap_add( heap_timer );
-		if( heap_timer == head_head() )
+		if( heap_timer == heap_head() )
 			// Time point for the head list item changed.
 			// Work thread must handle this.
 			this->m_condition.notify_one();
@@ -1569,7 +1569,7 @@ public :
 				heap_remove( heap_timer );
 
 				// Release timer object.
-				timer_t::decrement_references( list_timer );
+				timer_t::decrement_references( heap_timer );
 			}
 			// Otherwise m_timer_in_processing will be destroyed
 			// after end of timer action processing.
@@ -1629,7 +1629,7 @@ private :
 	 * \{
 	 */
 	//! Array for holding heap data structure.
-	std::vector< heap_timer_t > m_heap;
+	std::vector< heap_timer_t * > m_heap;
 
 	//! Timer which is currently in processing.
 	heap_timer_t * m_timer_in_processing = nullptr;
@@ -1707,7 +1707,7 @@ private :
 		std::unique_lock< std::mutex > & lock )
 	{
 		if( !this->m_shutdown )
-			if( !head_empty() )
+			if( !heap_empty() )
 			{
 				auto time_point = heap_head()->m_when;
 				this->m_condition.wait_until( lock, time_point );
@@ -1760,6 +1760,10 @@ private :
 		m_timer_in_processing = nullptr;
 	}
 
+	/*!
+	 * \name Methods for work with heap data structure.
+	 * \{
+	 */
 	//! Is heap data structure empty?
 	bool
 	heap_empty() const
@@ -1856,6 +1860,9 @@ private :
 	{
 		return m_heap[ position - 1 ];
 	}
+	/*!
+	 * \}
+	 */
 };
 
 //! An alias for default timer_list thread implementation.
