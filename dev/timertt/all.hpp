@@ -3,7 +3,7 @@
  */
 
 /*!
- * \file
+ * \file timertt/all.hpp
  * \brief All project's stuff.
  */
 
@@ -271,6 +271,10 @@ typedef std::chrono::steady_clock monotonic_clock_t;
 namespace details
 {
 
+//
+// thread_basic_t
+//
+
 /*!
  * \brief A common base class for thread templates.
  *
@@ -418,6 +422,10 @@ protected :
 };
 
 } /* namespace details */
+
+//
+// timer_wheel_thread_template_t
+//
 
 /*!
  * \brief A timer wheel thread template.
@@ -1082,10 +1090,18 @@ private :
 	}
 };
 
+//
+// timer_list_thread_t
+//
+
 //! An alias for default timer_wheel thread implementation.
 using timer_wheel_thread_t = timer_wheel_thread_template_t<
 		default_error_logger,
 		default_actor_exception_handler >;
+
+//
+// timer_list_thread_template_t
+//
 
 /*!
  * \brief A timer list thread template.
@@ -1673,13 +1689,39 @@ private :
 	}
 };
 
+//
+// timer_list_thread_t
+//
+
 //! An alias for default timer_list thread implementation.
 using timer_list_thread_t = timer_list_thread_template_t<
 		default_error_logger,
 		default_actor_exception_handler >;
 
+//
+// timer_heap_thread_template_t
+//
+
 /*!
  * \brief A timer heap thread template.
+ *
+ * This timer thread uses timer mechanism based on
+ * <a href="http://en.wikipedia.org/wiki/Heap_%28data_structure%29">heap data structure</a>. The timer with the earlier time point is on the top of
+ * the heap. When this timer elapsed and removed next timer with the
+ * eralier time point is going to the top of the heap.
+ *
+ * This implementation uses array-based <a
+ * href="http://en.wikipedia.org/wiki/Binary_heap">binary heap</a>. The array
+ * is growing as necessary to hold all the timers. The initial size of that
+ * array can be specified in the constructor.
+ *
+ * \note Unlike timer_wheel and timer_list threads this thread unlock and
+ * lock its mutex for processing every timers. It means that processing
+ * speed of this thread will be slower then for timer_wheel or
+ * timer_list threads. But this type of thread doesn't consume resources
+ * when there is no timers (unlike timer_wheel thread). And has very
+ * efficient activation and deactivation procedures (unlike timer_list
+ * thread).
  *
  * \tparam ERROR_LOGGER type of logger for errors detected during
  * timer thread execution. Interface for error logger is defined
@@ -1708,6 +1750,10 @@ public :
 	}
 
 	//! Default constructor.
+	/*!
+	 * Value default_initial_heap_capacity() is used as initial
+	 * heap array size.
+	 */
 	timer_heap_thread_template_t()
 		:	timer_heap_thread_template_t(
 				default_initial_heap_capacity(),
@@ -1717,6 +1763,7 @@ public :
 
 	//! Constructor to specify initial capacity of heap-array.
 	timer_heap_thread_template_t(
+		//! An initial size for heap array.
 		std::size_t initial_heap_capacity )
 		:	timer_heap_thread_template_t(
 				initial_heap_capacity,
@@ -1726,8 +1773,11 @@ public :
 
 	//! Constructor with all parameters.
 	timer_heap_thread_template_t(
+		//! An initial size for heap array.
 		std::size_t initial_heap_capacity,
+		//! An error logger for timer thread.
 		ERROR_LOGGER error_logger,
+		//! An actor exception handler for timer thread.
 		ACTOR_EXCEPTION_HANDLER exception_handler )
 		:	base_type_t( error_logger, exception_handler )
 	{
@@ -1996,8 +2046,6 @@ private :
 		clear_all();
 	}
 
-//FIXME: make more detailed description of this method.
-//Especially that object is unlocked for execution for every demands.
 	//! Processing all elapsed timers.
 	void
 	process_ready_to_exec_timers(
@@ -2033,6 +2081,12 @@ private :
 		}
 	}
 
+	/*!
+	 * \brief Waiting for next event to process.
+	 *
+	 * If the heap is not emply the thread will sleep until
+	 * time point of the top timer in the heap.
+	 */
 	void
 	sleep_for_next_event(
 		std::unique_lock< std::mutex > & lock )
@@ -2047,6 +2101,7 @@ private :
 				this->m_condition.wait( lock );
 	}
 
+	//! Execute the current timer.
 	void
 	execute_timer_in_processing(
 		//! Object lock.
@@ -2198,9 +2253,14 @@ private :
 	 */
 };
 
+//
+// timer_heap_thread_t
+//
+
 //! An alias for default timer_list thread implementation.
 using timer_heap_thread_t = timer_heap_thread_template_t<
 		default_error_logger,
 		default_actor_exception_handler >;
+
 } /* namespace timertt */
 
