@@ -105,7 +105,6 @@ Timer thread must be stopped. It can be done several ways:
 
 2. There is a method shutdown_and_join() which sends shutdown signal
 to the timer thread and waits the finishing of the timer thread:
-
 \code
 timertt::timer_wheel_thread_t tt;
 tt.start();
@@ -117,7 +116,6 @@ tt.shutdown_and_join();
 the thread, but no waits. And a method join() which waits the timer
 thread. This methods can be useful if shutdown signal must be sent
 from timer action:
-
 \code
 timertt::timer_wheel_thread_t tt;
 tt.start();

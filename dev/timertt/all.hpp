@@ -33,6 +33,10 @@
 namespace timertt
 {
 
+//
+// timer_t
+//
+
 /*!
  * \brief Base type for timer demands.
  */
@@ -41,6 +45,7 @@ struct timer_t
 	//! Reference counter for the demand.
 	std::atomic_uint m_references;
 
+	//! Deafault constructor.
 	inline timer_t()
 	{
 		m_references = 0;
@@ -66,6 +71,9 @@ struct timer_t
 	}
 };
 
+//
+// timer_holder_t
+//
 /*!
  * \brief An intrusive smart pointer to timer demand.
  */
@@ -199,29 +207,59 @@ private :
 	}
 };
 
+//
+// default_error_logger
+//
+
+/*!
+ * \brief Class of default error logger.
+ *
+ * This class uses std::cerr as the stream for logging errors.
+ */
 struct default_error_logger
 {
+	//! Logs error message to std::cerr.
 	inline void
-	operator()( const std::string & what )
+	operator()(
+		//! The text of error message.
+		const std::string & what )
 	{
 		std::cerr << what << std::endl;
 	}
 };
 
+//
+// default_actor_exception_handler
+//
+
+/*!
+ * \brief Class of default handler for exceptions thrown from timer actors.
+ *
+ * Calls std::abort() to terminate application execution.
+ */
 struct default_actor_exception_handler
 {
+	//! Handles exception.
 	inline void
-	operator()( const std::exception & x )
+	operator()(
+		//! An exception from timer actor.
+		const std::exception & x )
 	{
 		std::abort();
 	}
 };
 
+//
+// timer_action_t
+//
 /*!
  * \brief Type of timer action.
  */
 typedef std::function< void() > timer_action_t;
 
+//
+// monotonic_clock_t
+//
 /*!
  * \brief Type of clock used by all threads.
  */
@@ -238,6 +276,14 @@ namespace details
  *
  * Incapsulates basic features (like mutex, condition variable, thread
  * and so on).
+ *
+ * \tparam ERROR_LOGGER type of logger for errors detected during
+ * timer thread execution. Interface for error logger is defined
+ * by default_error_logger class.
+ *
+ * \tparam ACTOR_EXCEPTION_HANDLER type of handler for dealing with
+ * exceptions thrown from timer actors. Interface for exception handler
+ * is defined by default_actor_exception_handler.
  */
 template<
 	typename ERROR_LOGGER,
@@ -258,7 +304,9 @@ public :
 
 	//! Constructor with all parameters.
 	thread_basic_t(
+		//! An error logger for timer thread.
 		ERROR_LOGGER error_logger,
+		//! An actor exception handler for timer thread.
 		ACTOR_EXCEPTION_HANDLER exception_handler )
 		:	m_error_logger( error_logger )
 		,	m_exception_handler( exception_handler )
@@ -373,6 +421,36 @@ protected :
 
 /*!
  * \brief A timer wheel thread template.
+ *
+ * This class uses <a href="http://www.cs.columbia.edu/~nahum/w6998/papers/ton97-timing-wheels.pdf">timer_wheel</a> mechanism to work with timers.
+ * This mechanism is efficient for working with big amount of timers.
+ * But it requires that timer thread is working always, even in case
+ * when there is no timers. Another price for timer_wheel is the
+ * granularity of timer steps.
+ *
+ * Timer wheel data structure consists from one fixed size vector
+ * (the wheel) and several double-linked list (one list for every wheel
+ * slot). 
+ *
+ * At the start of next time step thread switches to next wheel position
+ * and handles timers from this position list. After processing
+ * all elapsed single-shot timers will be removed and deactivated, and
+ * all elapsed periodic timers will be rescheduled for the new time steps.
+ *
+ * \note At the beginnig of time step thread detects elapsed timers, then
+ * unblocks object mutex and calls timer actors for those timers. It means
+ * that actors call call timer thread object. And there won't be frequent
+ * mutex locking/unlocking operations for building and processing
+ * list of elapsed timers. This allows to process millions of timer actor
+ * per second.
+ *
+ * \tparam ERROR_LOGGER type of logger for errors detected during
+ * timer thread execution. Interface for error logger is defined
+ * by default_error_logger class.
+ *
+ * \tparam ACTOR_EXCEPTION_HANDLER type of handler for dealing with
+ * exceptions thrown from timer actors. Interface for exception handler
+ * is defined by default_actor_exception_handler.
  */
 template<
 	typename ERROR_LOGGER,
@@ -404,7 +482,9 @@ public :
 
 	//! Constructor with wheel size and granularity parameters.
 	timer_wheel_thread_template_t(
+		//! Size of the wheel.
 		unsigned int wheel_size,
+		//! Size of time step for the timer_wheel.
 		monotonic_clock_t::duration granularity )
 		:	timer_wheel_thread_template_t(
 				wheel_size,
@@ -416,9 +496,13 @@ public :
 
 	//! Constructor with all parameters.
 	timer_wheel_thread_template_t(
+		//! Size of the wheel.
 		unsigned int wheel_size,
+		//! Size of time step for the timer_wheel.
 		monotonic_clock_t::duration granularity,
+		//! An error logger for timer thread.
 		ERROR_LOGGER error_logger,
+		//! An actor exception handler for timer thread.
 		ACTOR_EXCEPTION_HANDLER exception_handler )
 		:	base_type_t( error_logger, exception_handler )
 		,	m_wheel_size( wheel_size )
@@ -441,6 +525,13 @@ public :
 	}
 
 	//! Activate timer and schedule it for execution.
+	/*!
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is already activated.
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
+	 */
 	template< class DURATION_1 >
 	void
 	activate(
@@ -462,6 +553,10 @@ public :
 	/*!
 	 * There is no need to preallocate timer object. It will
 	 * be allocated automatically, but not be shown to user.
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
 	 */
 	template< class DURATION_1 >
 	void
@@ -480,6 +575,15 @@ public :
 
 	//! Activate timer and schedule it for execution.
 	template< class DURATION_1, class DURATION_2 >
+	/*!
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is already activated.
+	 *
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
+	 * \tparam DURATION_2 actual type which represents time duration.
+	 */
 	void
 	activate(
 		//! Timer to be activated.
@@ -487,6 +591,8 @@ public :
 		//! Pause for timer execution.
 		DURATION_1 pause,
 		//! Repetition period.
+		//! If <tt>DURATION_2::zero() == period</tt> then timer will be
+		//! single-shot.
 		DURATION_2 period,
 		//! Action for the timer.
 		timer_action_t action )
@@ -524,6 +630,11 @@ public :
 	/*!
 	 * There is no need to preallocate timer object. It will
 	 * be allocated automatically, but not be shown to user.
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
+	 * \tparam DURATION_2 actual type which represents time duration.
 	 */
 	template< class DURATION_1, class DURATION_2 >
 	void
@@ -531,6 +642,8 @@ public :
 		//! Pause for timer execution.
 		DURATION_1 pause,
 		//! Repetition period.
+		//! If <tt>DURATION_2::zero() == period</tt> then timer will be
+		//! single-shot.
 		DURATION_2 period,
 		//! Action for the timer.
 		timer_action_t action )
@@ -653,6 +766,11 @@ private :
 	 * \}
 	 */
 
+	/*!
+	 * \brief Hard check for deactivation state of the timer.
+	 *
+	 * \throw std::runtimer_error if timer is not deactivated.
+	 */
 	static void
 	ensure_timer_deactivated( const wheel_timer_t * timer )
 	{
@@ -660,9 +778,24 @@ private :
 			throw std::runtime_error( "timer is not in 'deactivated' state" );
 	}
 
+	/*!
+	 * \brief Converion of duration to number of time steps.
+	 *
+	 * \note This implementation performs rounding up for duration
+	 * values. For example if granularity is 10ms and duration is
+	 * 15ms then result will be 2 time steps.
+	 *
+	 * \note Never return 0. If duration is less then granularity (even
+	 * after rounding up) the value 1 will be returned. E.g. timer
+	 * will be scheduled for the next time step.
+	 *
+	 * \tparam DURATION actual type for duration representation.
+	 */
 	template< class DURATION >
 	unsigned int
-	duration_to_ticks( DURATION d ) const
+	duration_to_ticks(
+		//! Time duration to be converted in time steps count.
+		DURATION d ) const
 	{
 		auto d_units = 
 				std::chrono::duration_cast< monotonic_clock_t::duration >( d )
@@ -682,9 +815,17 @@ private :
 		return r;
 	}
 
+	/*!
+	 * \brief Calculate and fill up wheel position for the timer.
+	 *
+	 * wheel_timer_t::m_position and wheel_timer_t::m_full_rolls_left
+	 * will be set for \a wheel_timer.
+	 */
 	void
 	set_position_in_the_wheel(
+		//! Timer to modify.
 		wheel_timer_t * wheel_timer,
+		//! Timeout for the timer is time steps.
 		unsigned int pause_in_ticks ) const
 	{
 		wheel_timer->m_position =
@@ -692,6 +833,12 @@ private :
 		wheel_timer->m_full_rolls_left = pause_in_ticks / m_wheel_size;
 	}
 
+	/*!
+	 * \brief Insert timer to the wheel.
+	 *
+	 * If there is a non-empty timer list for the timer wheel position
+	 * the \a wheel_timer will be added to the end of that list.
+	 */
 	void
 	insert_demand_to_wheel( wheel_timer_t * wheel_timer )
 	{
@@ -715,6 +862,9 @@ private :
 		}
 	}
 
+	/*!
+	 * \brief Remove timer from the timer_wheel.
+	 */
 	void
 	remove_timer_from_wheel( wheel_timer_t * wheel_timer )
 	{
@@ -764,6 +914,12 @@ private :
 		clear_all();
 	}
 
+	/*!
+	 * \brief Detect elapsed timers for the current time step and
+	 * process them all.
+	 *
+	 * Object \a lock will be unlocked and then locked back.
+	 */
 	void
 	process_current_wheel_position(
 		std::unique_lock< std::mutex > & lock )
@@ -778,6 +934,9 @@ private :
 		}
 	}
 
+	/*!
+	 * \brief Make list of elapsed timers to be executed.
+	 */
 	wheel_timer_t *
 	make_exec_list()
 	{
@@ -818,6 +977,9 @@ private :
 		return head;
 	}
 
+	/*!
+	 * \brief Execute all active timers from the list.
+	 */
 	void
 	exec_actions(
 		//! Object lock.
@@ -859,6 +1021,13 @@ private :
 		lock.lock();
 	}
 
+	/*!
+	 * \brief Process list of elapsed timers after execution of
+	 * its actions.
+	 *
+	 * Active periodic timers will be rescheduled. All other timers
+	 * will be deactivated and removed.
+	 */
 	void
 	utilize_exec_list(
 		//! Head of execution list.
@@ -890,6 +1059,9 @@ private :
 		}
 	}
 
+	/*!
+	 * \brief Deactivate all timers and cleanup internal data structures.
+	 */
 	void
 	clear_all()
 	{
@@ -917,6 +1089,14 @@ using timer_wheel_thread_t = timer_wheel_thread_template_t<
 
 /*!
  * \brief A timer list thread template.
+ *
+ * \tparam ERROR_LOGGER type of logger for errors detected during
+ * timer thread execution. Interface for error logger is defined
+ * by default_error_logger class.
+ *
+ * \tparam ACTOR_EXCEPTION_HANDLER type of handler for dealing with
+ * exceptions thrown from timer actors. Interface for exception handler
+ * is defined by default_actor_exception_handler.
  */
 template<
 	typename ERROR_LOGGER,
@@ -958,6 +1138,13 @@ public :
 	}
 
 	//! Activate timer and schedule it for execution.
+	/*!
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is already activated.
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
+	 */
 	template< class DURATION_1 >
 	void
 	activate(
@@ -979,6 +1166,10 @@ public :
 	/*!
 	 * There is no need to preallocate timer object. It will
 	 * be allocated automatically, but not be shown to user.
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
 	 */
 	template< class DURATION_1 >
 	void
@@ -996,6 +1187,14 @@ public :
 	}
 
 	//! Activate timer and schedule it for execution.
+	/*!
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is already activated.
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
+	 * \tparam DURATION_2 actual type which represents time duration.
+	 */
 	template< class DURATION_1, class DURATION_2 >
 	void
 	activate(
@@ -1004,6 +1203,8 @@ public :
 		//! Pause for timer execution.
 		DURATION_1 pause,
 		//! Repetition period.
+		//! If <tt>DURATION_2::zero() == period</tt> then timer will be
+		//! single-shot.
 		DURATION_2 period,
 		//! Action for the timer.
 		timer_action_t action )
@@ -1038,6 +1239,11 @@ public :
 	/*!
 	 * There is no need to preallocate timer object. It will
 	 * be allocated automatically, but not be shown to user.
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
+	 * \tparam DURATION_2 actual type which represents time duration.
 	 */
 	template< class DURATION_1, class DURATION_2 >
 	void
@@ -1045,6 +1251,8 @@ public :
 		//! Pause for timer execution.
 		DURATION_1 pause,
 		//! Repetition period.
+		//! If <tt>DURATION_2::zero() == period</tt> then timer will be
+		//! single-shot.
 		DURATION_2 period,
 		//! Action for the timer.
 		timer_action_t action )
@@ -1086,7 +1294,6 @@ public :
 	}
 
 private :
-//FIXME: may be this enum must be moved into details::thread_basic_t?
 	//! Status of wheel timer.
 	enum class timer_status_t : unsigned int
 	{
@@ -1153,6 +1360,11 @@ private :
 	 * \}
 	 */
 
+	/*!
+	 * \brief Hard check for deactivation state of the timer.
+	 *
+	 * \throw std::runtimer_error if timer is not deactivated.
+	 */
 	static void
 	ensure_timer_deactivated( const list_timer_t * timer )
 	{
@@ -1390,6 +1602,14 @@ using timer_list_thread_t = timer_list_thread_template_t<
 
 /*!
  * \brief A timer heap thread template.
+ *
+ * \tparam ERROR_LOGGER type of logger for errors detected during
+ * timer thread execution. Interface for error logger is defined
+ * by default_error_logger class.
+ *
+ * \tparam ACTOR_EXCEPTION_HANDLER type of handler for dealing with
+ * exceptions thrown from timer actors. Interface for exception handler
+ * is defined by default_actor_exception_handler.
  */
 template<
 	typename ERROR_LOGGER,
@@ -1450,6 +1670,13 @@ public :
 	}
 
 	//! Activate timer and schedule it for execution.
+	/*!
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is already activated.
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
+	 */
 	template< class DURATION_1 >
 	void
 	activate(
@@ -1471,6 +1698,10 @@ public :
 	/*!
 	 * There is no need to preallocate timer object. It will
 	 * be allocated automatically, but not be shown to user.
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
 	 */
 	template< class DURATION_1 >
 	void
@@ -1488,6 +1719,14 @@ public :
 	}
 
 	//! Activate timer and schedule it for execution.
+	/*!
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is already activated.
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
+	 * \tparam DURATION_2 actual type which represents time duration.
+	 */
 	template< class DURATION_1, class DURATION_2 >
 	void
 	activate(
@@ -1496,6 +1735,8 @@ public :
 		//! Pause for timer execution.
 		DURATION_1 pause,
 		//! Repetition period.
+		//! If <tt>DURATION_2::zero() == period</tt> then timer will be
+		//! single-shot.
 		DURATION_2 period,
 		//! Action for the timer.
 		timer_action_t action )
@@ -1530,6 +1771,11 @@ public :
 	/*!
 	 * There is no need to preallocate timer object. It will
 	 * be allocated automatically, but not be shown to user.
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
+	 * \tparam DURATION_2 actual type which represents time duration.
 	 */
 	template< class DURATION_1, class DURATION_2 >
 	void
@@ -1537,6 +1783,8 @@ public :
 		//! Pause for timer execution.
 		DURATION_1 pause,
 		//! Repetition period.
+		//! If <tt>DURATION_2::zero() == period</tt> then timer will be
+		//! single-shot.
 		DURATION_2 period,
 		//! Action for the timer.
 		timer_action_t action )
