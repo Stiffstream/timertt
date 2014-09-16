@@ -324,7 +324,7 @@ UT_UNIT_TEST( demands_deletion_during_processing_2 )
 			// Will be stopped by d3.
 			// events += 2 (3).
 			tt.activate( d2,
-					milliseconds( 110 ),
+					milliseconds( 120 ),
 					milliseconds( 100 ),
 					[&]() {
 						++events;
@@ -333,7 +333,7 @@ UT_UNIT_TEST( demands_deletion_during_processing_2 )
 			// Will be stopped by itself.
 			// events += 2 (5).
 			tt.activate( d3,
-					milliseconds( 110 ),
+					milliseconds( 130 ),
 					milliseconds( 100 ),
 					[&]() {
 						++events;
@@ -348,7 +348,7 @@ UT_UNIT_TEST( demands_deletion_during_processing_2 )
 			// Must be executed only once.
 			// events += 1 (6).
 			tt.activate( d4,
-					milliseconds( 110 ),
+					milliseconds( 140 ),
 					[&]() {
 						++events;
 						tt.deactivate( d5 );
@@ -356,11 +356,14 @@ UT_UNIT_TEST( demands_deletion_during_processing_2 )
 			// Must not be executed at all.
 			// It will be stopped by d4 just before execution.
 			tt.activate( d5,
-					milliseconds( 110 ),
+					milliseconds( 150 ),
 					milliseconds( 110 ),
 					[&]() {
-						++events;
-						tt.deactivate( d6 );
+						std::cout << __FILE__ << ":" << __LINE__ 
+								<< ": this action must not be called!"
+								<< std::endl;
+
+						std::abort();
 					} );
 			// Will be executed 6 times.
 			// events += 6 (12).
@@ -371,7 +374,7 @@ UT_UNIT_TEST( demands_deletion_during_processing_2 )
 						++events;
 					} );
 
-			std::this_thread::sleep_for( milliseconds( 670 ) );
+			std::this_thread::sleep_for( milliseconds( 700 ) );
 
 			tt.shutdown_and_join();
 
