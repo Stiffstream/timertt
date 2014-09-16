@@ -1090,6 +1090,31 @@ using timer_wheel_thread_t = timer_wheel_thread_template_t<
 /*!
  * \brief A timer list thread template.
  *
+ * This thread uses double-linked list of timers as timer mechanism.
+ * This list is ordered. The head of the list is the timer with the
+ * minimum time point.
+ *
+ * Thread sleeps until the first timer in the list elapsed. Then
+ * thread build sublist of elapsed timers and process them.
+ * Single-shot timers are removed after processing. Periodic
+ * timers rescheduled (inserted into appropriate places in the list).
+ *
+ * \note After building sublist of elapsed timers thread
+ * unblocks object mutex and calls timer actors for timers from the sublist.
+ * And locks object back right after processing. It means
+ * that actors call call timer thread object. And there won't be frequent
+ * mutex locking/unlocking operations for building and processing
+ * sublist of elapsed timers. This allows to process millions of timer actor
+ * per second.
+ *
+ * \attention This type of timer thread is good for situations
+ * where there are many timers with equal pauses and repetition periods.
+ * In that cases almost all timers will be added to the end of the
+ * list. But if there are many timers with very different pauses then
+ * operation of activating and rescheduling of timers will be too
+ * expensive. Timer thread based on timer_wheel or timer_heap is
+ * more appropriate for that scenario.
+ *
  * \tparam ERROR_LOGGER type of logger for errors detected during
  * timer thread execution. Interface for error logger is defined
  * by default_error_logger class.
@@ -1118,7 +1143,9 @@ public :
 
 	//! Constructor with all parameters.
 	timer_list_thread_template_t(
+		//! An error logger for timer thread.
 		ERROR_LOGGER error_logger,
+		//! An actor exception handler for timer thread.
 		ACTOR_EXCEPTION_HANDLER exception_handler )
 		:	base_type_t( error_logger, exception_handler )
 	{
@@ -1372,8 +1399,19 @@ private :
 			throw std::runtime_error( "timer is not in 'deactivated' state" );
 	}
 
+	//! Insert timer to the list.
+	/*!
+	 * Insertion starts from the tail of the list. And if \a timer
+	 * has lower list_timer_t::m_whan value then the last list item
+	 * there is an loop of searching appropriate place by going to
+	 * the head of the list.
+	 *
+	 * Doesn't increment reference count for \a timer.
+	 */
 	void
-	insert_timer_to_list( list_timer_t * timer )
+	insert_timer_to_list(
+		//! Timer to be inserted.
+		list_timer_t * timer )
 	{
 		list_timer_t * point = m_tail;
 		while( point )
@@ -1412,8 +1450,13 @@ private :
 			m_tail = timer;
 	}
 
+	//! Remove the timer from the list.
+	/*!
+	 * Doesn't decrement reference count for \a timer.
+	 */
 	void
-	remove_timer_from_list( list_timer_t * timer )
+	remove_timer_from_list(
+		list_timer_t * timer )
 	{
 		if( timer->m_prev )
 			timer->m_prev->m_next = timer->m_next;
@@ -1442,8 +1485,14 @@ private :
 		clear_all();
 	}
 
+	/*!
+	 * \brief Build sublist of elapsed timers and process them all.
+	 *
+	 * Object is unlocked and then locked back.
+	 */
 	void
 	process_ready_to_exec_timers(
+		//! Object's lock.
 		std::unique_lock< std::mutex > & lock )
 	{
 		list_timer_t * exec_list_head = make_exec_list();
@@ -1456,8 +1505,16 @@ private :
 		}
 	}
 
+	/*!
+	 * \brief Waiting for next event to process.
+	 *
+	 * If the list is not emply the thread will sleep until
+	 * time point of the first timer in the list.
+	 */
 	void
 	sleep_for_next_event(
+		//! Object's lock.
+		//! The lock is necessary for waiting on condition variable.
 		std::unique_lock< std::mutex > & lock )
 	{
 		if( !this->m_shutdown )
@@ -1470,6 +1527,12 @@ private :
 				this->m_condition.wait( lock );
 	}
 
+	/*!
+	 * \brief Build sublist of elapsed timers.
+	 *
+	 * All timers in the sublist receive timer_status_t::wait_for_execution
+	 * status.
+	 */
 	list_timer_t *
 	make_exec_list()
 	{
@@ -1509,6 +1572,11 @@ private :
 		return head;
 	}
 
+	/*!
+	 * \brief Execute all active timers in the sublist.
+	 *
+	 * Object is unlocked and locked back after sublist processing.
+	 */
 	void
 	exec_actions(
 		//! Object lock.
@@ -1550,6 +1618,13 @@ private :
 		lock.lock();
 	}
 
+	/*!
+	 * \brief Process list of elapsed timers after execution of
+	 * its actions.
+	 *
+	 * Active periodic timers will be rescheduled. All other timers
+	 * will be deactivated and removed.
+	 */
 	void
 	utilize_exec_list(
 		//! Head of execution list.
@@ -1579,6 +1654,9 @@ private :
 		}
 	}
 
+	/*!
+	 * \brief Deactivate all timers and cleanup internal data structures.
+	 */
 	void
 	clear_all()
 	{
