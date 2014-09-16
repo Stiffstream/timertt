@@ -1,6 +1,30 @@
 /*!
  * \mainpage
  *
+ * \par What Is It?
+ *
+ * timertt (Timer Thread Template) is a simple, lightweight and header-only
+ * implementation of timer thread classes based only on C++11 standard library.
+ * timertt supports several types of timer handling mechanisms (timer list,
+ * timer wheel, timer heap).
+ *
+ * \par Where To Get And How To Use
+ *
+ * Please see this section: \ref timertt_getting_started.
+ *
+ * \par Timer Mechanisms
+ *
+ * For more information about various types of timer mechanisms and their
+ * features please the this section: \ref timertt_timer_mechanisms.
+ *
+ * \par Version History
+ *
+ * Version history of timertt library is described here: \ref timertt_version.
+ *
+ * \par License
+ *
+ * The timertt is distributed under 3-clause BSD-license:
  * \verbinclude LICENSE
  */
 
+// vim:ft=cpp

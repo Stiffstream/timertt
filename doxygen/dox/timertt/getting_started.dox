@@ -1,0 +1,140 @@
+/*!
+ * \page timertt_getting_started Getting Started
+
+\section timertt_getting_started__where_to_get Where To Get The Library
+
+There is several methods for obtaining timertt library.
+
+1. The single header file with all library code can be download as archive from
+<a
+href="https://sourceforge.net/projects/sobjectizer/files/timertt/">SourceForge
+site</a>. Those archives have names like timertt-x.y.x-headeronly.7z. For
+example: timertt-1.0.0-headeronly.7z.
+
+2. The archive with library, samples, tests and documentation can be downloaded as archive from 
+<a
+href="https://sourceforge.net/projects/sobjectizer/files/timertt/">SourceForge
+site</a>. Those archives have names like timertt-x.y.x-full.7z. For
+example: timertt-1.0.0-full.7z.
+
+3. The source code of library can be exported or checked out from <a
+href="https://sourceforge.net/projects/sobjectizer/">SObjectizer</a>
+Subversion repository. Releases are inside this <a
+href="http://svn.code.sf.net/p/sobjectizer/repo/tags/timertt">tree</a>,
+development versions are inside this <a
+href="http://svn.code.sf.net/p/sobjectizer/repo/branches/timertt">tree</a>.
+
+\section timertt_getting_started__add_to_the_project Adding To The Project
+
+timertt is a header-only library. All the code in single header file
+<tt>timertt/all.hpp</tt>. So to add timertt to your project is only necessary
+to add path to <tt>timertt/all.hpp</tt> to INCLUDE path.
+
+\section timertt_getting_started__basic_usage Basic Usage
+
+An object of appropriate thread type must be created. For example:
+\code
+timertt::timer_wheel_thread_t tt;
+\endcode
+
+Then timer thread must be started by calling start() method:
+\code
+timertt::timer_wheel_thread_t tt;
+tt.start();
+\endcode
+
+\attention Timers must be added to timer thread only after the start of timer thread.
+
+There are two kind of timers: single-shot and periodic. Single-shot timers
+are created by activate() methods with only \a pause argument. Periodic timers
+are created by activate() methods with \a pause and \a period arguments:
+
+\code
+timertt::timer_wheel_thread_t tt;
+tt.start();
+
+// Adding single-shot timer.
+tt.activate( std::chrono::milliseconds( 500 ),
+  []() { std::cout << "Hello, World" << std::endl; } );
+
+// Adding periodic timer.
+tt.activate(
+	// Pause before the first timer activation.
+	std::chrono::milliseconds( 250 ),
+	// Period of timer activations.
+	std::chrono::milliseconds( 500 ),
+	[]() { std::cout << "Hello, World. Again" << std::endl; } );
+\endcode
+
+Timers can be deactivated. To do so it is necessary to preallocate timer
+and store timer identifier as timertt::timer_holder_t object. This object
+then passed to activate() and deactivate() methods:
+\code
+timertt::timer_wheel_thread_t tt;
+tt.start();
+
+// Adding single-shot timer.
+timertt::timer_holder_t id1 = tt.allocate();
+tt.activate( id1, std::chrono::milliseconds( 500 ),
+  []() { std::cout << "Hello, World" << std::endl; } );
+
+// Adding periodic timer.
+auto id2 == tt.allocate();
+tt.activate(
+	// Timer ID.
+	id2,
+	// Pause before the first timer activation.
+	std::chrono::milliseconds( 250 ),
+	// Period of timer activations.
+	std::chrono::milliseconds( 500 ),
+	[id2, &tt]() {
+		static int invocations = 1;
+		std::cout << "Hello, World. Again ("
+				<< invocations << ")" << std::endl;
+		if( ++invocations > 3 )
+			tt.deactivate( id2 );
+	} );
+...
+// Deactivate single-shot timer.
+tt.deactivate( id1 );
+\endcode
+
+Timer thread must be stopped. It can be done several ways:
+
+1. Timer thread is stopped automatically in timer object destructor.
+
+2. There is a method shutdown_and_join() which sends shutdown signal
+to the timer thread and waits the finishing of the timer thread:
+
+\code
+timertt::timer_wheel_thread_t tt;
+tt.start();
+...// Some work with timers...
+tt.shutdown_and_join();
+\endcode
+
+3. There is a method shutdown() which only sends shutdown signal to
+the thread, but no waits. And a method join() which waits the timer
+thread. This methods can be useful if shutdown signal must be sent
+from timer action:
+
+\code
+timertt::timer_wheel_thread_t tt;
+tt.start();
+
+tt.activate( std::chrono::milliseconds( 500 ),
+		std::chrono::milliseconds( 1000 ),
+		[&tt]()
+		{
+			if( some-condition )
+				tt.shutdown();
+			...
+		} );
+
+tt.join();
+\endcode
+
+ */
+
+// vim:ft=cpp
+
