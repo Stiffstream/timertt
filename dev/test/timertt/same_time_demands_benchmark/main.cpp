@@ -68,10 +68,11 @@ parse_args( int argc, char ** argv )
 	return result;
 }
 
+template< class TIMER_THREAD >
 void
 do_benchmark( const cfg_t cfg )
 {
-	timer_thread_t tt;
+	TIMER_THREAD tt;
 	tt.start();
 
 	const auto pause = milliseconds{ 250 }; 
@@ -122,7 +123,18 @@ int main( int argc, char ** argv )
 	{
 		cfg_t cfg = parse_args( argc, argv );
 
-		do_benchmark( cfg );
+		{
+			std::cout << "Benchmark for timer_list..." << std::endl;
+			do_benchmark< timertt::timer_list_thread_t >( cfg );
+		}
+		{
+			std::cout << "\n" "Benchmark for timer_wheel..." << std::endl;
+			do_benchmark< timertt::timer_wheel_thread_t >( cfg );
+		}
+		{
+			std::cout << "\n" "Benchmark for timer_heap..." << std::endl;
+			do_benchmark< timertt::timer_heap_thread_t >( cfg );
+		}
 	}
 	catch( const std::exception & x )
 	{

@@ -10,8 +10,6 @@
 
 using namespace std::chrono;
 
-typedef timertt::timer_wheel_thread_t timer_thread_t;
-
 struct cfg_t
 {
 	unsigned int m_demand_count = 0;
@@ -89,10 +87,11 @@ void do_nothing()
 {
 }
 
+template< class TIMER_THREAD >
 std::vector< timertt::timer_holder_t >
 create_timers(
 	const cfg_t & cfg,
-	timer_thread_t & tt,
+	TIMER_THREAD & tt,
 	timertt::timer_action_t actor )
 {
 	std::vector< milliseconds > durations = create_durations( cfg );
@@ -118,8 +117,9 @@ create_timers(
 	return result;
 }
 
+template< class TIMER_THREAD >
 void
-erase_demands( timer_thread_t & tt,
+erase_demands( TIMER_THREAD & tt,
 	std::vector< timertt::timer_holder_t > & timer_ids )
 {
 	std::cout << "Shuffling timer ids..." << std::endl;
@@ -140,19 +140,39 @@ erase_demands( timer_thread_t & tt,
 			"demands" );
 }
 
+template< class TIMER_THREAD >
+void
+do_benchmark(
+	const cfg_t & cfg,
+	const std::string & type_name )
+{
+	std::cout << "Benchmark for " << type_name << "..." << std::endl;
+
+	TIMER_THREAD tt;
+	tt.start();
+
+	auto timer_ids = create_timers( cfg, tt,
+			timertt::timer_action_t( &do_nothing ) );
+
+	erase_demands( tt, timer_ids );
+
+	std::cout << "***" << std::endl;
+}
+
 int main( int argc, char ** argv )
 {
 	try
 	{
 		cfg_t cfg = parse_args( argc, argv );
 
-		timer_thread_t tt;
-		tt.start();
+		do_benchmark< timertt::timer_list_thread_t >(
+				cfg, "timer_list" );
 
-		auto timer_ids = create_timers( cfg, tt,
-				timertt::timer_action_t( &do_nothing ) );
+		do_benchmark< timertt::timer_wheel_thread_t >(
+				cfg, "timer_wheel" );
 
-		erase_demands( tt, timer_ids );
+		do_benchmark< timertt::timer_heap_thread_t >(
+				cfg, "timer_heap" );
 	}
 	catch( const std::exception & x )
 	{
