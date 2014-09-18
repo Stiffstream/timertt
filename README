@@ -1,0 +1,72 @@
+timertt (Timer Thread Template) is a small, template based, header only library
+for C++11. It implements timer threads: thread which handles timers. timertt
+has no external dependecies except standard C++11 library.
+
+timertt was developed as part of SObjectizer[1] project but can be used as
+standalone library.
+
+timertt is distributed under 3-clauses BSD license (see LICENSE file).
+
+Obtaining and Using
+===================
+
+There are three methods for obtaining timertt library source code.
+
+1. Download minimal timertt archive from SObjectizer files section on
+SourceForge[2]. This archive has name like timertt-1.0.X-headeronly.7z. Just
+unpack this archive at appropriate location and add timertt folder to your
+project’s INCLUDE path.
+
+2. Download full timertt archive from SObjectizer files section on
+SourceForge[2]. This archive has name like timertt-1.0.X-full.7z. Just unpack
+this archive at appropriate location and add timertt-1.0.X/dev/timertt folder
+to your project’s INCLUDE path.
+
+Ruby and Mxx_ru tool are necessary for building timertt tests and samples.
+Mxx_ru can be installed as RubyGem by the command:
+
+> gem install Mxx_ru
+
+To build timertt tests and samples go to the timertt-1.0.X/dev folder and run:
+
+> ruby build_all.rb
+
+3. Export (or check out) timertt source code from Subversion repository on
+SourceForge. For example:
+
+> svn export http://svn.code.sf.net/p/sobjectizer/repo/tags/timertt/1.0.0 timertt-1.0.0
+
+Then add timertt-1.0.X to your project’s INCLUDE path.
+
+Like in previous method Ruby and Mxx_ru are necessary for building timertt
+tests and samples.
+
+API Reference manual can be built by Doxygen tool:
+
+> cd timertt-1.0.X/doxygen
+> doxygen
+
+Generated documenation will be stored into timertt-1.0.X/dev/doc/html folder.
+
+Main Project Documentation
+==========================
+
+Main documenation for timertt library is on SObjectizer’s wiki[3] on
+SourceForge.
+
+Bug Reporting and Feedback
+==========================
+
+For bug reporting, proposals, discussions and stuff like this the appropriate
+SObjectizer’s forums on SourceForge must be used [4],[5],[6]
+
+References
+==========
+
+[1] http://sourceforge.net/projects/sobjectizer/
+[2] http://sourceforge.net/projects/sobjectizer/files/timertt
+[3] http://sourceforge.net/p/sobjectizer/wiki/Timer%20Thread%20Template/
+[4] http://sourceforge.net/p/sobjectizer/bugs/
+[5] http://sourceforge.net/p/sobjectizer/feature-requests/
+[6] http://sourceforge.net/p/sobjectizer/discussion/
+
