@@ -44,7 +44,7 @@ int main()
 	tt.activate( id2, milliseconds( 40 ), milliseconds( 15 ),
 			[id2, &tt]() {
 				static int i = 0;
-				cout << "Preallicated periodic (" << i << ")" << endl;
+				cout << "Preallocated periodic (" << i << ")" << endl;
 				++i;
 				if( i > 2 )
 					tt.deactivate( id2 );
