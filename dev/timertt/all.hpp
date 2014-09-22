@@ -1709,7 +1709,8 @@ using timer_list_thread_t = timer_list_thread_template_t<
  * \brief A timer heap thread template.
  *
  * This timer thread uses timer mechanism based on
- * <a href="http://en.wikipedia.org/wiki/Heap_%28data_structure%29">heap data structure</a>. The timer with the earlier time point is on the top of
+ * <a href="http://en.wikipedia.org/wiki/Heap_%28data_structure%29">heap data structure</a>.
+ * The timer with the earlier time point is on the top of
  * the heap. When this timer elapsed and removed next timer with the
  * eralier time point is going to the top of the heap.
  *
