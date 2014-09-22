@@ -1330,7 +1330,7 @@ public :
 		else if( timer_status_t::wait_for_execution == list_timer->m_status )
 		{
 			// This timer is in execution list right now.
-			// We can only changed its status.
+			// We can only change its status.
 			// Final deactivation will be done after execution of
 			// timers actions.
 			list_timer->m_status = timer_status_t::wait_for_deactivation;
@@ -1584,7 +1584,7 @@ private :
 		}
 		else
 		{
-			// Entry timer list is the execution list.
+			// Whole timer list is the execution list.
 			m_head = m_tail = nullptr;
 		}
 
