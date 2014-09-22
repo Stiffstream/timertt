@@ -430,7 +430,8 @@ protected :
 /*!
  * \brief A timer wheel thread template.
  *
- * This class uses <a href="http://www.cs.columbia.edu/~nahum/w6998/papers/ton97-timing-wheels.pdf">timer_wheel</a> mechanism to work with timers.
+ * This class uses <a href="http://www.cs.columbia.edu/~nahum/w6998/papers/ton97-timing-wheels.pdf">timer_wheel</a>
+ * mechanism to work with timers.
  * This mechanism is efficient for working with big amount of timers.
  * But it requires that timer thread is working always, even in case
  * when there is no timers. Another price for timer_wheel is the
