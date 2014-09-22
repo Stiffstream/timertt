@@ -1534,6 +1534,7 @@ private :
 		std::unique_lock< std::mutex > & lock )
 	{
 		if( !this->m_shutdown )
+		{
 			if( m_head )
 			{
 				auto time_point = m_head->m_when;
@@ -1541,6 +1542,7 @@ private :
 			}
 			else
 				this->m_condition.wait( lock );
+		}
 	}
 
 	/*!
@@ -2092,6 +2094,7 @@ private :
 		std::unique_lock< std::mutex > & lock )
 	{
 		if( !this->m_shutdown )
+		{
 			if( !heap_empty() )
 			{
 				auto time_point = heap_head()->m_when;
@@ -2099,6 +2102,7 @@ private :
 			}
 			else
 				this->m_condition.wait( lock );
+		}
 	}
 
 	//! Execute the current timer.

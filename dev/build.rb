@@ -5,7 +5,7 @@ MxxRu::Cpp::composite_target( MxxRu::BUILD_ROOT ) {
 	toolset.force_cpp0x_std
 	global_include_path "."
 	
-	if 'gcc' == toolset.name
+	if 'gcc' == toolset.name || 'clang' == toolset.name
 		global_linker_option '-pthread'
 	end
 
