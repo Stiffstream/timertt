@@ -1555,40 +1555,40 @@ private :
 	list_timer_t *
 	make_exec_list()
 	{
-		list_timer_t * head = nullptr;
-		list_timer_t * tail = nullptr;
+		// If there is no timer return empty list immidiately.
+		if( !m_head )
+			return nullptr;
+
+		auto tail = m_head;
 
 		const auto now = monotonic_clock_t::now();
 
-		while( m_head && now >= m_head->m_when )
+		// Search the first not-elapsed-yet timer.
+		while( tail && now >= tail->m_when )
 		{
-			list_timer_t * t = m_head;
-			m_head = m_head->m_next;
-			if( m_head )
-				m_head->m_prev = nullptr;
-
-			if( tail )
-			{
-				tail->m_next = t;
-				t->m_prev = tail;
-				t->m_next = nullptr;
-				tail = t;
-			}
-			else
-			{
-				head = tail = t;
-				t->m_prev = t->m_next = nullptr;
-			}
-
-			t->m_status = timer_status_t::wait_for_execution;
+			tail->m_status = timer_status_t::wait_for_execution;
+			tail = tail->m_next;
 		}
 
-		if( !m_head )
-			// Now the list is empty.
-			// There must not be tail anymore.
-			m_tail = nullptr;
+		if( tail == m_head )
+			// There is no elapsed timers.
+			return nullptr;
 
-		return head;
+		auto exec_list_head = m_head;
+		if( tail )
+		{
+			// This item must be the new head of the list.
+			m_head = tail;
+			tail->m_prev->m_next = nullptr;
+			tail->m_prev = nullptr;
+		}
+		else
+		{
+			// Entry timer list is the execution list.
+			m_head = m_tail = nullptr;
+		}
+
+		return exec_list_head;
 	}
 
 	/*!
