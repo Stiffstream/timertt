@@ -34,7 +34,7 @@ To build timertt tests and samples go to the timertt-1.0.X/dev folder and run:
 3. Export (or check out) timertt source code from Subversion repository on
 SourceForge. For example:
 
-> svn export http://svn.code.sf.net/p/sobjectizer/repo/tags/timertt/1.0.0 timertt-1.0.0
+> svn export http://svn.code.sf.net/p/sobjectizer/repo/tags/timertt/1.0.1 timertt-1.0.1
 
 Then add timertt-1.0.X to your project’s INCLUDE path.
 
@@ -57,7 +57,7 @@ SourceForge.
 Bug Reporting and Feedback
 ==========================
 
-For bug reporting, proposals, discussions and stuff like this the appropriate
+For bug reporting, proposals, discussions and stuff like that the appropriate
 SObjectizer’s forums on SourceForge must be used [4],[5],[6]
 
 References
