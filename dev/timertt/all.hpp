@@ -1092,7 +1092,7 @@ private :
 };
 
 //
-// timer_list_thread_t
+// timer_wheel_thread_t
 //
 
 //! An alias for default timer_wheel thread implementation.
