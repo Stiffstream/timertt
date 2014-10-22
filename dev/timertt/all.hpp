@@ -243,7 +243,7 @@ struct default_actor_exception_handler
 	inline void
 	operator()(
 		//! An exception from timer actor.
-		const std::exception & x )
+		const std::exception & )
 	{
 		std::abort();
 	}
