@@ -34,9 +34,9 @@ To build timertt tests and samples go to the timertt-1.0.X/dev folder and run:
 3. Export (or check out) timertt source code from Subversion repository on
 SourceForge. For example:
 
-> svn export http://svn.code.sf.net/p/sobjectizer/repo/tags/timertt/1.0.1 timertt-1.0.1
+> svn export http://svn.code.sf.net/p/sobjectizer/repo/tags/timertt/1.0.2 timertt-1.0.2
 
-Then add timertt-1.0.X to your project’s INCLUDE path.
+Then add timertt-1.0.X to your project's INCLUDE path.
 
 Like in previous method Ruby and Mxx_ru are necessary for building timertt
 tests and samples.
