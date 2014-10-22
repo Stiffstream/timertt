@@ -1970,7 +1970,7 @@ private :
 		 * This value is illegal index in heap-array because
 		 * position numbers in heap-array are started from 1, not from 0.
 		 */
-		static const unsigned int deactivation_indicator = 0;
+		static const std::size_t deactivation_indicator = 0;
 
 		//! Time of execution for this timer.
 		monotonic_clock_t::time_point m_when;
@@ -1985,7 +1985,7 @@ private :
 		timer_action_t m_action;
 
 		//! Position in the heap-array.
-		unsigned int m_position = deactivation_indicator;
+		std::size_t m_position = deactivation_indicator;
 
 		//! Is timer deactivated.
 		bool

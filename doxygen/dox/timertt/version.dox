@@ -1,6 +1,14 @@
 /*!
  * \page timertt_version timertt Version History
  *
+ * \section timertt_version_1_0_2 1.0.2
+ *
+ * Fix warning which is reported by some compiler at high warning level.
+ *
+ * \section timertt_version_1_0_1 1.0.1
+ *
+ * Small code cleanup and improvement.
+ *
  * \section timertt_version_1_0_0 1.0.0
  *
  * Initial release
