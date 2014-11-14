@@ -9,13 +9,13 @@ There is several methods for obtaining timertt library.
 <a
 href="https://sourceforge.net/projects/sobjectizer/files/timertt/">SourceForge
 site</a>. Those archives have names like timertt-x.y.x-headeronly.7z. For
-example: timertt-1.0.0-headeronly.7z.
+example: timertt-1.1.0-headeronly.7z.
 
 2. The archive with library, samples, tests and documentation can be downloaded as archive from 
 <a
 href="https://sourceforge.net/projects/sobjectizer/files/timertt/">SourceForge
 site</a>. Those archives have names like timertt-x.y.x-full.7z. For
-example: timertt-1.0.0-full.7z.
+example: timertt-1.1.0-full.7z.
 
 3. The source code of library can be exported or checked out from <a
 href="https://sourceforge.net/projects/sobjectizer/">SObjectizer</a>
