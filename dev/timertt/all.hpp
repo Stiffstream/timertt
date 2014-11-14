@@ -33,30 +33,95 @@
 namespace timertt
 {
 
+//FIXME: document this!
+enum class threading
+{
+	single,
+	multi
+};
+
+//FIXME: document this!
+struct noop_unique_lock_t
+{
+	void lock() {}
+	void unlock() {}
+};
+
+namespace details
+{
+
+//! Status of timer.
+enum class timer_status_t : unsigned int
+{
+	//! Timer is deactivated.
+	/*! It can be activated or destroyed safely. */
+	deactivated,
+	//! Timer is activated.
+	/*! It can be safely deactivated and destroyed. */
+	active,
+	//! Timer is in execution list and is waiting for execution.
+	/*!
+	 * It cannot be deactivated and destroyed right now.
+	 * Status of timer can only be changed to wait_for_deactivation.
+	 * And actual deactivation will be performed later, after
+	 * processing of execution list.
+	 */
+	wait_for_execution,
+	//! Timer must be deactivated after processing of execution list.
+	/*!
+	 * The only possible switch for the timer is to deactivated status.
+	 */
+	wait_for_deactivation
+};
+
+} /* namespace details */
+
+//FIXME: document this!
+template< threading T >
+struct threading_traits_t
+{
+	typedef unsigned int reference_counter_t;
+
+	typedef details::timer_status_t status_holder_t;
+
+	typedef noop_unique_lock_t unique_lock_t;
+};
+
+template<>
+struct threading_traits_t< threading::multi >
+{
+	typedef std::atomic_uint reference_counter_t;
+
+	typedef std::atomic< details::timer_status_t > status_holder_t;
+
+	typedef std::unique_lock< std::mutex > unique_lock_t;
+};
+
 //
-// timer_t
+// timer_object_t
 //
 
 /*!
  * \brief Base type for timer demands.
  */
-struct timer_t
+template< threading T >
+struct timer_object_t
 {
 	//! Reference counter for the demand.
-	std::atomic_uint m_references;
+	typename threading_traits_t< T >::reference_counter_t m_references;
 
 	//! Deafault constructor.
-	inline timer_t()
+	inline timer_object_t()
 	{
 		m_references = 0;
 	}
 
-	inline virtual ~timer_t()
+	inline virtual ~timer_object_t()
 	{}
 
 	//! Increment reference counter for the demand.
 	static inline void
-	increment_references( timer_t * t )
+	increment_references( timer_object_t * t )
 	{
 		++(t->m_references);
 	}
@@ -64,7 +129,7 @@ struct timer_t
 	//! Decrement reference counter for the demand and destroy
 	//! demand if there is no more references.
 	static inline void
-	decrement_references( timer_t * t )
+	decrement_references( timer_object_t * t )
 	{
 		if( 0 == --(t->m_references) )
 			delete t;
@@ -72,69 +137,80 @@ struct timer_t
 };
 
 //
-// timer_holder_t
+// timer_t
+//
+/*!
+ * \brief Base type for timer demands in multithreading mode.
+ *
+ * \note For compatibility with version 1.0.
+ */
+typedef timer_object_t< threading::multi > timer_t;
+
+//
+// timer_object_holder_t
 //
 /*!
  * \brief An intrusive smart pointer to timer demand.
  */
-class timer_holder_t
+template< threading T >
+class timer_object_holder_t
 {
 public :
 	//! Default constructor.
 	/*!
 	 * Constructs a null pointer.
 	 */
-	inline timer_holder_t()
+	inline timer_object_holder_t()
 		:	m_timer( nullptr )
 	{}
 	//! Constructor for a raw pointer.
-	inline timer_holder_t( timer_t * t )
+	inline timer_object_holder_t( timer_object_t< T > * t )
 		:	m_timer( t )
 	{
 		take_object();
 	}
 	//! Copy constructor.
-	inline timer_holder_t( const timer_holder_t & o )
+	inline timer_object_holder_t( const timer_object_holder_t & o )
 		:	m_timer( o.m_timer )
 	{
 		take_object();
 	}
 	//! Move constructor.
-	inline timer_holder_t( timer_holder_t && o )
+	inline timer_object_holder_t( timer_object_holder_t && o )
 		:	m_timer( o.m_timer )
 	{
 		o.m_timer = nullptr;
 	}
 
 	//! Destructor.
-	inline ~timer_holder_t()
+	inline ~timer_object_holder_t()
 	{
 		dismiss_object();
 	}
 
 	//! Copy operator.
-	inline timer_holder_t &
-	operator=( const timer_holder_t & o )
+	inline timer_object_holder_t &
+	operator=( const timer_object_holder_t & o )
 	{
-		timer_holder_t t( o );
+		timer_object_holder_t t( o );
 		swap( t );
 		return *this;
 	}
 
 	//! Move operator.
-	inline timer_holder_t &
-	operator=( timer_holder_t && o )
+	inline timer_object_holder_t &
+	operator=( timer_object_holder_t && o )
 	{
-		timer_holder_t t( std::move( o ) );
+		timer_object_holder_t t( std::move( o ) );
 		swap( t );
 		return *this;
 	}
 
 	//! Swap values.
 	inline void
-	swap( timer_holder_t & o )
+	swap( timer_object_holder_t & o )
 	{
-		timer_t * t = m_timer;
+		auto t = m_timer;
 		m_timer = o.m_timer;
 		o.m_timer = t;
 	}
@@ -164,20 +240,20 @@ public :
 	 * \name Access to object.
 	 * \{
 	 */
-	inline timer_t *
+	inline timer_object_t< T > *
 	get() const
 	{
 		return m_timer;
 	}
 
-	template< class T >
-	T * 
+	template< class O >
+	O * 
 	cast_to()
 	{
 		if( !m_timer )
 			throw std::runtime_error( "timer is nullptr" );
 
-		return static_cast< T * >(m_timer);
+		return static_cast< O * >(m_timer);
 	}
 	/*!
 	 * \}
@@ -185,7 +261,7 @@ public :
 
 private :
 	//! Timer controlled by a smart pointer.
-	timer_t * m_timer;
+	timer_object_t< T > * m_timer;
 
 	//! Increment reference count to object if it's not null.
 	inline void
@@ -206,6 +282,16 @@ private :
 		}
 	}
 };
+
+//
+// timer_holder_t
+//
+/*!
+ * \brief An intrusive smart pointer to timer demand in multithreading mode.
+ *
+ * \note For compatibility with version 1.0.
+ */
+typedef timer_object_holder_t< threading::multi > timer_holder_t;
 
 //
 // default_error_logger
@@ -270,6 +356,429 @@ typedef std::chrono::steady_clock monotonic_clock_t;
  */
 namespace details
 {
+
+//
+// timer_list_engine_t
+//
+//FIXME: document this!
+template<
+	threading THREADING,
+	typename ERROR_LOGGER,
+	typename ACTOR_EXCEPTION_HANDLER >
+class timer_list_engine_t
+{
+public :
+	//! Default constructor.
+	timer_list_engine_t()
+	{}
+
+	//! Constructor with all parameters.
+	timer_list_engine_t(
+		//! An error logger for timer thread.
+		ERROR_LOGGER error_logger,
+		//! An actor exception handler for timer thread.
+		ACTOR_EXCEPTION_HANDLER exception_handler )
+		:	m_error_logger( error_logger )
+		,	m_exception_handler( exception_handler )
+	{
+	}
+
+	//! Create timer to be activated later.
+	timer_object_holder_t< THREADING >
+	allocate()
+	{
+		return timer_object_holder_t< THREADING >( new list_timer_t() );
+	}
+
+	//! Activate timer and schedule it for execution.
+	/*!
+	 *
+	 * \return true if the new timer is the first timer in the list.
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is already activated.
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
+	 * \tparam DURATION_2 actual type which represents time duration.
+	 */
+	template< class DURATION_1, class DURATION_2 >
+	bool
+	activate(
+		//! Timer to be activated.
+		timer_object_holder_t< THREADING > timer,
+		//! Pause for timer execution.
+		DURATION_1 pause,
+		//! Repetition period.
+		//! If <tt>DURATION_2::zero() == period</tt> then timer will be
+		//! single-shot.
+		DURATION_2 period,
+		//! Action for the timer.
+		timer_action_t action )
+	{
+		auto list_timer = timer.template cast_to< list_timer_t >();
+		ensure_timer_deactivated( list_timer );
+
+		// Timer object must be correctly (re)initialized.
+		list_timer->m_action = std::move( action );
+		list_timer->m_when = monotonic_clock_t::now() + pause;
+		list_timer->m_period = std::chrono::duration_cast<
+				monotonic_clock_t::duration >( period );
+
+		// Timer must be taken under control.
+		timer_object_t< THREADING >::increment_references( list_timer );
+		// It is an active timer now.
+		list_timer->m_status = timer_status_t::active;
+
+		insert_timer_to_list( list_timer );
+		return list_timer == m_head;
+	}
+
+	//! Deactivate timer and remove it from the list.
+	void
+	deactivate(
+		//! Timer to be deactivated.
+		timer_object_holder_t< THREADING > timer )
+	{
+		auto list_timer = timer.template cast_to< list_timer_t >();
+		if( timer_status_t::active == list_timer->m_status )
+		{
+			// This is normal active timer. It can be safely
+			// deactivated and destroyed.
+			remove_timer_from_list( list_timer );
+
+			list_timer->m_status = timer_status_t::deactivated;
+
+			// Release timer object.
+			timer_t::decrement_references( list_timer );
+		}
+		else if( timer_status_t::wait_for_execution == list_timer->m_status )
+		{
+			// This timer is in execution list right now.
+			// We can only change its status.
+			// Final deactivation will be done after execution of
+			// timers actions.
+			list_timer->m_status = timer_status_t::wait_for_deactivation;
+		}
+	}
+
+	/*!
+	 * \brief Build sublist of elapsed timers and process them all.
+	 *
+	 * Object is unlocked and then locked back.
+	 */
+	void
+	process_expired_timers(
+		//! Object's lock.
+		typename threading_traits_t< THREADING >::unique_lock_t & lock )
+	{
+		list_timer_t * exec_list_head = make_exec_list();
+
+		if( exec_list_head )
+		{
+			exec_actions( lock, exec_list_head );
+
+			utilize_exec_list( exec_list_head );
+		}
+	}
+
+	/*!
+	 * \brief Is empty timer list?
+	 *
+	 * \return true if there is no more timers.
+	 */
+	bool
+	empty() const
+	{
+		return nullptr == m_head;
+	}
+
+	/*!
+	 * \brief Get time point of the next timer.
+	 *
+	 * \attention Must be called only when \a !empty().
+	 */
+	monotonic_clock_t::time_point
+	nearest_time_point() const
+	{
+		return m_head->m_when;
+	}
+
+	/*!
+	 * \brief Deactivate all timers and cleanup internal data structures.
+	 */
+	void
+	clear_all()
+	{
+		while( m_head )
+		{
+			auto t = m_head;
+			m_head = m_head->m_next;
+
+			t->m_status = timer_status_t::deactivated;
+			timer_object_t< THREADING >::decrement_references( t );
+		}
+
+		m_tail = nullptr;
+	}
+
+private :
+	//! Type of list timer.
+	struct list_timer_t : public timer_object_t< THREADING >
+	{
+		//! Status of the timer.
+		typename threading_traits_t< THREADING >::status_holder_t m_status;
+
+		//! Time of execution for this timer.
+		monotonic_clock_t::time_point m_when;
+
+		//! Period in ticks.
+		/*!
+		 * Zero means that demand is single shot.
+		 */
+		monotonic_clock_t::duration m_period;
+
+		//! Timer action.
+		timer_action_t m_action;
+
+		//! Previous demand in the list.
+		list_timer_t * m_prev = nullptr;
+		//! Next demand in the list.
+		list_timer_t * m_next = nullptr;
+
+		list_timer_t()
+		{
+			m_status = timer_status_t::deactivated;
+		}
+	};
+
+	/*!
+	 * \name Object's attributes.
+	 * \{
+	 */
+	//! Error logger.
+	ERROR_LOGGER m_error_logger;
+
+	//! Exception handler.
+	ACTOR_EXCEPTION_HANDLER m_exception_handler;
+
+	//! Head of the list of timers.
+	list_timer_t * m_head = nullptr;
+
+	//! Tail of the list of timers.
+	list_timer_t * m_tail = nullptr;
+	/*!
+	 * \}
+	 */
+
+	/*!
+	 * \brief Hard check for deactivation state of the timer.
+	 *
+	 * \throw std::runtimer_error if timer is not deactivated.
+	 */
+	static void
+	ensure_timer_deactivated( const list_timer_t * timer )
+	{
+		if( timer_status_t::deactivated != timer->m_status )
+			throw std::runtime_error( "timer is not in 'deactivated' state" );
+	}
+
+	//! Insert timer to the list.
+	/*!
+	 * Insertion starts from the tail of the list. And if \a timer
+	 * has lower list_timer_t::m_whan value then the last list item
+	 * there is an loop of searching appropriate place by going to
+	 * the head of the list.
+	 *
+	 * Doesn't increment reference count for \a timer.
+	 */
+	void
+	insert_timer_to_list(
+		//! Timer to be inserted.
+		list_timer_t * timer )
+	{
+		list_timer_t * point = m_tail;
+		while( point )
+		{
+			if( point->m_when > timer->m_when )
+				point = point->m_prev;
+			else
+			{
+				// This is a point to insertion (new timer must be
+				// next to 'point' item).
+				timer->m_next = point->m_next;
+
+				if( point->m_next )
+					point->m_next->m_prev = timer;
+				point->m_next = timer;
+
+				timer->m_prev = point;
+
+				if( point == m_tail )
+					// timer must become a new tail for the list.
+					m_tail = timer;
+
+				return;
+			}
+		}
+
+		// Timer must go to the head of the list.
+		timer->m_prev = nullptr;
+		timer->m_next = m_head;
+		if( m_head )
+			m_head->m_prev = timer;
+		m_head = timer;
+
+		if( !m_tail )
+			// List was empty. So there must be new tail of the list.
+			m_tail = timer;
+	}
+
+	//! Remove the timer from the list.
+	/*!
+	 * Doesn't decrement reference count for \a timer.
+	 */
+	void
+	remove_timer_from_list(
+		list_timer_t * timer )
+	{
+		if( timer->m_prev )
+			timer->m_prev->m_next = timer->m_next;
+		else
+			m_head = timer->m_next;
+
+		if( timer->m_next )
+			timer->m_next->m_prev = timer->m_prev;
+		else
+			m_tail = timer->m_prev;
+	}
+
+	/*!
+	 * \brief Build sublist of elapsed timers.
+	 *
+	 * All timers in the sublist receive timer_status_t::wait_for_execution
+	 * status.
+	 */
+	list_timer_t *
+	make_exec_list()
+	{
+		// If there is no timer return empty list immidiately.
+		if( !m_head )
+			return nullptr;
+
+		auto tail = m_head;
+
+		const auto now = monotonic_clock_t::now();
+
+		// Search the first not-elapsed-yet timer.
+		while( tail && now >= tail->m_when )
+		{
+			tail->m_status = timer_status_t::wait_for_execution;
+			tail = tail->m_next;
+		}
+
+		if( tail == m_head )
+			// There is no elapsed timers.
+			return nullptr;
+
+		auto exec_list_head = m_head;
+		if( tail )
+		{
+			// This item must be the new head of the list.
+			m_head = tail;
+			tail->m_prev->m_next = nullptr;
+			tail->m_prev = nullptr;
+		}
+		else
+		{
+			// Whole timer list is the execution list.
+			m_head = m_tail = nullptr;
+		}
+
+		return exec_list_head;
+	}
+
+	/*!
+	 * \brief Execute all active timers in the sublist.
+	 *
+	 * Object is unlocked and locked back after sublist processing.
+	 */
+	void
+	exec_actions(
+		//! Object lock.
+		//! This lock will be unlocked before execution of actions
+		//! and locked back after.
+		typename threading_traits_t< THREADING >::unique_lock_t & lock,
+		//! Head of execution list.
+		//! Cannot be nullptr.
+		list_timer_t * head )
+	{
+		lock.unlock();
+
+		while( head )
+		{
+			try
+			{
+				// Status of timer can be changed. So it must be checked
+				// just before execution. If timer is waiting for
+				// deregistration it must not be executed.
+				if( timer_status_t::wait_for_execution == head->m_status )
+					head->m_action();
+			}
+			catch( const std::exception & x )
+			{
+				this->m_exception_handler( x );
+			}
+			catch( ... )
+			{
+				std::ostringstream ss;
+				ss << __FILE__ << "(" << __LINE__ 
+					<< "): an unknown exception from timer action";
+				this->m_error_logger( ss.str() );
+				std::abort();
+			}
+
+			head = head->m_next;
+		}
+
+		lock.lock();
+	}
+
+	/*!
+	 * \brief Process list of elapsed timers after execution of
+	 * its actions.
+	 *
+	 * Active periodic timers will be rescheduled. All other timers
+	 * will be deactivated and removed.
+	 */
+	void
+	utilize_exec_list(
+		//! Head of execution list.
+		//! Cannot be null.
+		list_timer_t * head )
+	{
+		while( head )
+		{
+			auto t = head;
+			head = head->m_next;
+
+			// Actual periodic timer must be rescheduled.
+			if( timer_status_t::wait_for_execution == t->m_status &&
+					monotonic_clock_t::duration::zero() != t->m_period )
+			{
+				t->m_when += t->m_period;
+				t->m_status = timer_status_t::active;
+
+				insert_timer_to_list( t );
+			}
+			else
+			{
+				// Timer must be utilized.
+				t->m_status = timer_status_t::deactivated;
+				timer_object_t< THREADING >::decrement_references( t );
+			}
+		}
+	}
+};
 
 //
 // thread_basic_t
@@ -1165,6 +1674,7 @@ public :
 		//! An actor exception handler for timer thread.
 		ACTOR_EXCEPTION_HANDLER exception_handler )
 		:	base_type_t( error_logger, exception_handler )
+		,	m_engine( error_logger, exception_handler )
 	{
 	}
 
@@ -1178,7 +1688,7 @@ public :
 	timer_holder_t
 	allocate()
 	{
-		return timer_holder_t( new list_timer_t() );
+		return m_engine.allocate();
 	}
 
 	//! Activate timer and schedule it for execution.
@@ -1258,22 +1768,7 @@ public :
 		if( !this->m_thread )
 			throw std::runtime_error( "timer_thread is not started" );
 
-		auto list_timer = timer.cast_to< list_timer_t >();
-		ensure_timer_deactivated( list_timer );
-
-		// Timer object must be correctly (re)initialized.
-		list_timer->m_action = std::move( action );
-		list_timer->m_when = monotonic_clock_t::now() + pause;
-		list_timer->m_period = std::chrono::duration_cast<
-				monotonic_clock_t::duration >( period );
-
-		// Timer must be taken under control.
-		timer_t::increment_references( list_timer );
-		// It is an active timer now.
-		list_timer->m_status = timer_status_t::active;
-
-		insert_timer_to_list( list_timer );
-		if( list_timer == m_head )
+		if( m_engine.activate( timer, pause, period, std::move(action) ) )
 			// Time point for the head list item changed.
 			// Work thread must handle this.
 			this->m_condition.notify_one();
@@ -1315,176 +1810,23 @@ public :
 
 		std::lock_guard< std::mutex > lock( this->m_lock );
 
-		auto list_timer = timer.cast_to< list_timer_t >();
-		if( timer_status_t::active == list_timer->m_status )
-		{
-			// This is normal active timer. It can be safely
-			// deactivated and destroyed.
-			remove_timer_from_list( list_timer );
-
-			list_timer->m_status = timer_status_t::deactivated;
-
-			// Release timer object.
-			timer_t::decrement_references( list_timer );
-		}
-		else if( timer_status_t::wait_for_execution == list_timer->m_status )
-		{
-			// This timer is in execution list right now.
-			// We can only change its status.
-			// Final deactivation will be done after execution of
-			// timers actions.
-			list_timer->m_status = timer_status_t::wait_for_deactivation;
-		}
+		m_engine.deactivate( timer );
 	}
 
 private :
-	//! Status of wheel timer.
-	enum class timer_status_t : unsigned int
-	{
-		//! Timer is deactivated.
-		/*! It can be activated or destroyed safely. */
-		deactivated,
-		//! Timer is activated.
-		/*! It can be safely deactivated and destroyed. */
-		active,
-		//! Timer is in execution list and is waiting for execution.
-		/*!
-		 * It cannot be deactivated and destroyed right now.
-		 * Status of timer can only be changed to wait_for_deactivation.
-		 * And actual deactivation will be performed later, after
-		 * processing of execution list.
-		 */
-		wait_for_execution,
-		//! Timer must be deactivated after processing of execution list.
-		/*!
-		 * The only possible switch for the timer is to deactivated status.
-		 */
-		wait_for_deactivation
-	};
-
-	//! Type of list timer.
-	struct list_timer_t : public timer_t
-	{
-		//! Status of the timer.
-		std::atomic< timer_status_t > m_status;
-
-		//! Time of execution for this timer.
-		monotonic_clock_t::time_point m_when;
-
-		//! Period in ticks.
-		/*!
-		 * Zero means that demand is single shot.
-		 */
-		monotonic_clock_t::duration m_period;
-
-		//! Timer action.
-		timer_action_t m_action;
-
-		//! Previous demand in the list.
-		list_timer_t * m_prev = nullptr;
-		//! Next demand in the list.
-		list_timer_t * m_next = nullptr;
-
-		list_timer_t()
-		{
-			m_status = timer_status_t::deactivated;
-		}
-	};
-
 	/*!
 	 * \name Object's attributes.
 	 * \{
 	 */
-	//! Head of the list of timers.
-	list_timer_t * m_head = nullptr;
-
-	//! Tail of the list of timers.
-	list_timer_t * m_tail = nullptr;
+	//! Actual timer engine.
+	details::timer_list_engine_t<
+					threading::multi,
+					ERROR_LOGGER,
+					ACTOR_EXCEPTION_HANDLER >
+			m_engine;
 	/*!
 	 * \}
 	 */
-
-	/*!
-	 * \brief Hard check for deactivation state of the timer.
-	 *
-	 * \throw std::runtimer_error if timer is not deactivated.
-	 */
-	static void
-	ensure_timer_deactivated( const list_timer_t * timer )
-	{
-		if( timer_status_t::deactivated != timer->m_status )
-			throw std::runtime_error( "timer is not in 'deactivated' state" );
-	}
-
-	//! Insert timer to the list.
-	/*!
-	 * Insertion starts from the tail of the list. And if \a timer
-	 * has lower list_timer_t::m_whan value then the last list item
-	 * there is an loop of searching appropriate place by going to
-	 * the head of the list.
-	 *
-	 * Doesn't increment reference count for \a timer.
-	 */
-	void
-	insert_timer_to_list(
-		//! Timer to be inserted.
-		list_timer_t * timer )
-	{
-		list_timer_t * point = m_tail;
-		while( point )
-		{
-			if( point->m_when > timer->m_when )
-				point = point->m_prev;
-			else
-			{
-				// This is a point to insertion (new timer must be
-				// next to 'point' item).
-				timer->m_next = point->m_next;
-
-				if( point->m_next )
-					point->m_next->m_prev = timer;
-				point->m_next = timer;
-
-				timer->m_prev = point;
-
-				if( point == m_tail )
-					// timer must become a new tail for the list.
-					m_tail = timer;
-
-				return;
-			}
-		}
-
-		// Timer must go to the head of the list.
-		timer->m_prev = nullptr;
-		timer->m_next = m_head;
-		if( m_head )
-			m_head->m_prev = timer;
-		m_head = timer;
-
-		if( !m_tail )
-			// List was empty. So there must be new tail of the list.
-			m_tail = timer;
-	}
-
-	//! Remove the timer from the list.
-	/*!
-	 * Doesn't decrement reference count for \a timer.
-	 */
-	void
-	remove_timer_from_list(
-		list_timer_t * timer )
-	{
-		if( timer->m_prev )
-			timer->m_prev->m_next = timer->m_next;
-		else
-			m_head = timer->m_next;
-
-		if( timer->m_next )
-			timer->m_next->m_prev = timer->m_prev;
-		else
-			m_tail = timer->m_prev;
-	}
 
 	//! Thread body.
 	virtual void
@@ -1494,32 +1836,12 @@ private :
 
 		while( !this->m_shutdown )
 		{
-			process_ready_to_exec_timers( lock );
+			m_engine.process_expired_timers( lock );
 
 			sleep_for_next_event( lock );
 		}
 
-		clear_all();
-	}
-
-	/*!
-	 * \brief Build sublist of elapsed timers and process them all.
-	 *
-	 * Object is unlocked and then locked back.
-	 */
-	void
-	process_ready_to_exec_timers(
-		//! Object's lock.
-		std::unique_lock< std::mutex > & lock )
-	{
-		list_timer_t * exec_list_head = make_exec_list();
-
-		if( exec_list_head )
-		{
-			exec_actions( lock, exec_list_head );
-
-			utilize_exec_list( exec_list_head );
-		}
+		m_engine.clear_all();
 	}
 
 	/*!
@@ -1536,159 +1858,14 @@ private :
 	{
 		if( !this->m_shutdown )
 		{
-			if( m_head )
+			if( !m_engine.empty() )
 			{
-				auto time_point = m_head->m_when;
+				auto time_point = m_engine.nearest_time_point();
 				this->m_condition.wait_until( lock, time_point );
 			}
 			else
 				this->m_condition.wait( lock );
 		}
-	}
-
-	/*!
-	 * \brief Build sublist of elapsed timers.
-	 *
-	 * All timers in the sublist receive timer_status_t::wait_for_execution
-	 * status.
-	 */
-	list_timer_t *
-	make_exec_list()
-	{
-		// If there is no timer return empty list immidiately.
-		if( !m_head )
-			return nullptr;
-
-		auto tail = m_head;
-
-		const auto now = monotonic_clock_t::now();
-
-		// Search the first not-elapsed-yet timer.
-		while( tail && now >= tail->m_when )
-		{
-			tail->m_status = timer_status_t::wait_for_execution;
-			tail = tail->m_next;
-		}
-
-		if( tail == m_head )
-			// There is no elapsed timers.
-			return nullptr;
-
-		auto exec_list_head = m_head;
-		if( tail )
-		{
-			// This item must be the new head of the list.
-			m_head = tail;
-			tail->m_prev->m_next = nullptr;
-			tail->m_prev = nullptr;
-		}
-		else
-		{
-			// Whole timer list is the execution list.
-			m_head = m_tail = nullptr;
-		}
-
-		return exec_list_head;
-	}
-
-	/*!
-	 * \brief Execute all active timers in the sublist.
-	 *
-	 * Object is unlocked and locked back after sublist processing.
-	 */
-	void
-	exec_actions(
-		//! Object lock.
-		//! This lock will be unlocked before execution of actions
-		//! and locked back after.
-		std::unique_lock< std::mutex > & lock,
-		//! Head of execution list.
-		//! Cannot be nullptr.
-		list_timer_t * head )
-	{
-		lock.unlock();
-
-		while( head )
-		{
-			try
-			{
-				// Status of timer can be changed. So it must be checked
-				// just before execution. If timer is waiting for
-				// deregistration it must not be executed.
-				if( timer_status_t::wait_for_execution == head->m_status )
-					head->m_action();
-			}
-			catch( const std::exception & x )
-			{
-				this->m_exception_handler( x );
-			}
-			catch( ... )
-			{
-				std::ostringstream ss;
-				ss << __FILE__ << "(" << __LINE__ 
-					<< "): an unknown exception from timer action";
-				this->m_error_logger( ss.str() );
-				std::abort();
-			}
-
-			head = head->m_next;
-		}
-
-		lock.lock();
-	}
-
-	/*!
-	 * \brief Process list of elapsed timers after execution of
-	 * its actions.
-	 *
-	 * Active periodic timers will be rescheduled. All other timers
-	 * will be deactivated and removed.
-	 */
-	void
-	utilize_exec_list(
-		//! Head of execution list.
-		//! Cannot be null.
-		list_timer_t * head )
-	{
-		while( head )
-		{
-			auto t = head;
-			head = head->m_next;
-
-			// Actual periodic timer must be rescheduled.
-			if( timer_status_t::wait_for_execution == t->m_status &&
-					monotonic_clock_t::duration::zero() != t->m_period )
-			{
-				t->m_when += t->m_period;
-				t->m_status = timer_status_t::active;
-
-				insert_timer_to_list( t );
-			}
-			else
-			{
-				// Timer must be utilized.
-				t->m_status = timer_status_t::deactivated;
-				timer_t::decrement_references( t );
-			}
-		}
-	}
-
-	/*!
-	 * \brief Deactivate all timers and cleanup internal data structures.
-	 */
-	void
-	clear_all()
-	{
-		while( m_head )
-		{
-			auto t = m_head;
-			m_head = m_head->m_next;
-
-			t->m_status = timer_status_t::deactivated;
-			timer_t::decrement_references( t );
-		}
-
-		m_tail = nullptr;
 	}
 };
 
