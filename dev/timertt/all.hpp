@@ -268,7 +268,7 @@ private :
 	take_object()
 	{
 		if( m_timer )
-			timer_t::increment_references( m_timer );
+			timer_object_t< T >::increment_references( m_timer );
 	}
 
 	//! Decrement reference count to object and delete it if needed.
@@ -277,7 +277,7 @@ private :
 	{
 		if( m_timer )
 		{
-			timer_t::decrement_references( m_timer );
+			timer_object_t< T >::decrement_references( m_timer );
 			m_timer = nullptr;
 		}
 	}
@@ -466,10 +466,11 @@ public :
 	 *
 	 * Object is unlocked and then locked back.
 	 */
+	template< typename UNIQUE_LOCK >
 	void
 	process_expired_timers(
 		//! Object's lock.
-		typename threading_traits_t< THREADING >::unique_lock_t & lock )
+		UNIQUE_LOCK & lock )
 	{
 		list_timer_t * exec_list_head = make_exec_list();
 
@@ -702,12 +703,13 @@ private :
 	 *
 	 * Object is unlocked and locked back after sublist processing.
 	 */
+	template< class UNIQUE_LOCK >
 	void
 	exec_actions(
 		//! Object lock.
 		//! This lock will be unlocked before execution of actions
 		//! and locked back after.
-		typename threading_traits_t< THREADING >::unique_lock_t & lock,
+		UNIQUE_LOCK & lock,
 		//! Head of execution list.
 		//! Cannot be nullptr.
 		list_timer_t * head )
@@ -778,6 +780,41 @@ private :
 			}
 		}
 	}
+};
+
+//FIXME: document this!
+template< threading THREADING >
+struct timer_manager_base_t
+{
+	bool m_started = false;
+
+	class lock_guard_t
+	{
+	public :
+		lock_guard_t( timer_manager_base_t & ) {}
+
+		void lock() {}
+		void unlock() {}
+	};
+};
+
+//FIXME: document this!
+template<>
+struct timer_manager_base_t< threading::multi >
+{
+	bool m_started = false;
+	std::mutex m_lock;
+
+	class lock_guard_t
+	{
+		std::unique_lock< std::mutex > m_lock;
+
+	public :
+		lock_guard_t( timer_manager_base_t & self ) : m_lock( self.m_lock ) {}
+
+		void lock() { m_lock.lock(); }
+		void unlock() { m_lock.unlock(); }
+	};
 };
 
 //
@@ -1768,7 +1805,8 @@ public :
 		if( !this->m_thread )
 			throw std::runtime_error( "timer_thread is not started" );
 
-		if( m_engine.activate( timer, pause, period, std::move(action) ) )
+		if( m_engine.activate(
+				std::move( timer ), pause, period, std::move( action ) ) )
 			// Time point for the head list item changed.
 			// Work thread must handle this.
 			this->m_condition.notify_one();
@@ -1810,7 +1848,7 @@ public :
 
 		std::lock_guard< std::mutex > lock( this->m_lock );
 
-		m_engine.deactivate( timer );
+		m_engine.deactivate( std::move( timer ) );
 	}
 
 private :
@@ -1877,6 +1915,187 @@ private :
 using timer_list_thread_t = timer_list_thread_template_t<
 		default_error_logger,
 		default_actor_exception_handler >;
+
+//
+// timer_list_manager_template_t
+//
+//FIXME: document this!
+template<
+	threading THREADING,
+	typename ERROR_LOGGER,
+	typename ACTOR_EXCEPTION_HANDLER >
+class timer_list_manager_template_t
+	: protected details::timer_manager_base_t< THREADING > 
+{
+public :
+	//! Default constructor.
+	timer_list_manager_template_t()
+	{}
+
+	//! Constructor with all parameters.
+	timer_list_manager_template_t(
+		//! An error logger for timer thread.
+		ERROR_LOGGER error_logger,
+		//! An actor exception handler for timer thread.
+		ACTOR_EXCEPTION_HANDLER exception_handler )
+		:	m_engine( error_logger, exception_handler )
+	{
+	}
+
+//FIXME: document this!
+	void
+	start()
+	{
+		lock_guard_t locker{ *this };
+		if( this->m_started )
+			throw std::runtime_error( "timer_manager already started" );
+
+		this->m_started = true;
+	}
+
+//FIXME: document this!
+	void
+	stop()
+	{
+		lock_guard_t locker{ *this };
+		if( this->m_started )
+		{
+			this->m_started = false;
+			m_engine.clear_all();
+		}
+	}
+
+//FIXME: document this!
+	timer_object_holder_t< THREADING >
+	allocate()
+	{
+		return m_engine.allocate();
+	}
+
+	//! Activate timer and schedule it for execution.
+	/*!
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is already activated.
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
+	 */
+	template< class DURATION_1 >
+	void
+	activate(
+		//! Timer to be activated.
+		timer_object_holder_t< THREADING > timer,
+		//! Pause for timer execution.
+		DURATION_1 pause,
+		//! Action for the timer.
+		timer_action_t action )
+	{
+		activate(
+				std::move( timer ),
+				pause,
+				monotonic_clock_t::duration::zero(),
+				std::move( action ) );
+	}
+
+	//! Activate timer and schedule it for execution.
+	/*!
+	 * There is no need to preallocate timer object. It will
+	 * be allocated automatically, but not be shown to user.
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
+	 */
+	template< class DURATION_1 >
+	void
+	activate(
+		//! Pause for timer execution.
+		DURATION_1 pause,
+		//! Action for the timer.
+		timer_action_t action )
+	{
+		activate(
+				allocate(),
+				pause,
+				monotonic_clock_t::duration::zero(),
+				std::move( action ) );
+	}
+
+//FIXME: document this!
+	template< class DURATION_1, class DURATION_2 >
+	void
+	activate(
+		//! Timer to be activated.
+		timer_object_holder_t< THREADING > timer,
+		//! Pause for timer execution.
+		DURATION_1 pause,
+		//! Repetition period.
+		//! If <tt>DURATION_2::zero() == period</tt> then timer will be
+		//! single-shot.
+		DURATION_2 period,
+		//! Action for the timer.
+		timer_action_t action )
+	{
+		lock_guard_t locker{ *this };
+		if( !this->m_started )
+			throw std::runtime_error( "timer_manager must be started" );
+
+		m_engine.activate( std::move( timer ), pause, period,
+				std::move( action ) );
+	}
+
+	//! Activate timer and schedule it for execution.
+	/*!
+	 * There is no need to preallocate timer object. It will
+	 * be allocated automatically, but not be shown to user.
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
+	 * \tparam DURATION_2 actual type which represents time duration.
+	 */
+	template< class DURATION_1, class DURATION_2 >
+	void
+	activate(
+		//! Pause for timer execution.
+		DURATION_1 pause,
+		//! Repetition period.
+		//! If <tt>DURATION_2::zero() == period</tt> then timer will be
+		//! single-shot.
+		DURATION_2 period,
+		//! Action for the timer.
+		timer_action_t action )
+	{
+		activate( allocate(), pause, period, std::move( action ) );
+	}
+
+	//! Deactivate timer and remove it from the list.
+	void
+	deactivate(
+		//! Timer to be deactivated.
+		timer_object_holder_t< THREADING > timer )
+	{
+		lock_guard_t locker{ *this };
+
+		m_engine.deactivate( timer );
+	}
+
+//FIXME: document this!
+	void
+	process_expired_timers()
+	{
+		lock_guard_t locker{ *this };
+
+		m_engine.process_expired_timers( locker );
+	}
+
+private :
+	details::timer_list_engine_t<
+					THREADING,
+					ERROR_LOGGER,
+					ACTOR_EXCEPTION_HANDLER >
+			m_engine;
+};
 
 //
 // timer_heap_thread_template_t
