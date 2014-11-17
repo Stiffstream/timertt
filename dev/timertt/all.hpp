@@ -1946,7 +1946,7 @@ public :
 	void
 	start()
 	{
-		lock_guard_t locker{ *this };
+		typename timer_list_manager_template_t::lock_guard_t locker{ *this };
 		if( this->m_started )
 			throw std::runtime_error( "timer_manager already started" );
 
@@ -1957,7 +1957,7 @@ public :
 	void
 	stop()
 	{
-		lock_guard_t locker{ *this };
+		typename timer_list_manager_template_t::lock_guard_t locker{ *this };
 		if( this->m_started )
 		{
 			this->m_started = false;
@@ -2036,7 +2036,7 @@ public :
 		//! Action for the timer.
 		timer_action_t action )
 	{
-		lock_guard_t locker{ *this };
+		typename timer_list_manager_template_t::lock_guard_t locker{ *this };
 		if( !this->m_started )
 			throw std::runtime_error( "timer_manager must be started" );
 
@@ -2075,7 +2075,7 @@ public :
 		//! Timer to be deactivated.
 		timer_object_holder_t< THREADING > timer )
 	{
-		lock_guard_t locker{ *this };
+		typename timer_list_manager_template_t::lock_guard_t locker{ *this };
 
 		m_engine.deactivate( timer );
 	}
@@ -2084,7 +2084,7 @@ public :
 	void
 	process_expired_timers()
 	{
-		lock_guard_t locker{ *this };
+		typename timer_list_manager_template_t::lock_guard_t locker{ *this };
 
 		m_engine.process_expired_timers( locker );
 	}
