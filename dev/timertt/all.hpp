@@ -449,7 +449,7 @@ public :
 			list_timer->m_status = timer_status_t::deactivated;
 
 			// Release timer object.
-			timer_t::decrement_references( list_timer );
+			timer_object_t< THREADING >::decrement_references( list_timer );
 		}
 		else if( timer_status_t::wait_for_execution == list_timer->m_status )
 		{

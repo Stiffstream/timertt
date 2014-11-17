@@ -8,6 +8,20 @@
 
 using namespace std::chrono;
 
+template< class MANAGER, class DURATION >
+void
+do_timer_loop_for(
+	MANAGER & manager,
+	DURATION pause )
+{
+	const auto stop_point = steady_clock::now() + pause;
+	while( stop_point > steady_clock::now() )
+	{
+		std::this_thread::sleep_for( milliseconds( 10 ) );
+		manager.process_expired_timers();
+	}
+}
+
 UT_UNIT_TEST( no_demands )
 {
 	run_with_time_limit(
@@ -63,13 +77,12 @@ UT_UNIT_TEST( single_shot )
 		"single_shot" );
 }
 
-#if 0
 UT_UNIT_TEST( single_periodic )
 {
 	run_with_time_limit(
 		[]()
 		{
-			timer_thread_t tt;
+			timer_manager_t tt;
 
 			tt.start();
 
@@ -86,8 +99,13 @@ UT_UNIT_TEST( single_periodic )
 							tt.deactivate( id );
 					} );
 
-			std::this_thread::sleep_for( milliseconds( 150 ) );
-			tt.shutdown_and_join();
+			for( int i = 0; i != 6; ++i )
+			{
+				std::this_thread::sleep_for( milliseconds( 30 ) );
+				tt.process_expired_timers();
+			}
+
+			tt.stop();
 
 			UT_CHECK_EQ( v, "1111" );
 		},
@@ -100,7 +118,7 @@ UT_UNIT_TEST( several_single_shots )
 	run_with_time_limit(
 		[]()
 		{
-			timer_thread_t tt;
+			timer_manager_t tt;
 
 			tt.start();
 
@@ -125,7 +143,7 @@ UT_UNIT_TEST( several_single_shots )
 
 			std::this_thread::sleep_for( milliseconds( 200 ) );
 
-			tt.shutdown_and_join();
+			tt.process_expired_timers();
 
 			UT_CHECK_EQ( v, "(20)(40)(60)(80)(90)(100)(120)(140)" );
 		},
@@ -138,7 +156,7 @@ UT_UNIT_TEST( several_periodics )
 	run_with_time_limit(
 		[]()
 		{
-			timer_thread_t tt;
+			timer_manager_t tt;
 
 			tt.start();
 
@@ -182,9 +200,7 @@ UT_UNIT_TEST( several_periodics )
 							tt.deactivate( id3 );
 					} );
 
-			std::this_thread::sleep_for( milliseconds( 1000 ) );
-
-			tt.shutdown_and_join();
+			do_timer_loop_for( tt, milliseconds( 1000 ) );
 
 			const std::string expected =
 					"(150/150)(200/200)(150/150)(200/200)(150/150)(500/150)"
@@ -201,7 +217,7 @@ UT_UNIT_TEST( anonymous_timers )
 	run_with_time_limit(
 		[]()
 		{
-			timer_thread_t tt;
+			timer_manager_t tt;
 
 			tt.start();
 
@@ -214,9 +230,7 @@ UT_UNIT_TEST( anonymous_timers )
 			tt.activate( milliseconds( 100 ),
 					[&v] () { v += "(s3)"; } );
 
-			std::this_thread::sleep_for( milliseconds( 190 ) );
-
-			tt.shutdown_and_join();
+			do_timer_loop_for( tt, milliseconds( 190 ) );
 
 			UT_CHECK_EQ( v, "(s1)(s2)(s2)(s3)(s2)(s2)" );
 		},
@@ -229,7 +243,7 @@ UT_UNIT_TEST( demands_cleanup_on_shutdown )
 	run_with_time_limit(
 		[]()
 		{
-			timer_thread_t tt;
+			timer_manager_t tt;
 
 			tt.start();
 
@@ -252,7 +266,7 @@ UT_UNIT_TEST( demands_cleanup_on_shutdown )
 				tt.activate( tt.allocate(), seconds( 10 ), [d3]() {} );
 			}
 
-			tt.shutdown_and_join();
+			tt.stop();
 
 			UT_CHECK_EQ( dealloc_counter, -3 );
 		},
@@ -265,7 +279,7 @@ UT_UNIT_TEST( demands_deletion_during_processing )
 	run_with_time_limit(
 		[]()
 		{
-			timer_thread_t tt;
+			timer_manager_t tt;
 
 			tt.start();
 
@@ -288,9 +302,9 @@ UT_UNIT_TEST( demands_deletion_during_processing )
 			tt.activate( d3, milliseconds( 110 ), [&events]() { ++events; } );
 			tt.activate( d4, milliseconds( 110 ), [&events]() { ++events; } );
 
-			std::this_thread::sleep_for( milliseconds( 250 ) );
+			do_timer_loop_for( tt, milliseconds( 250 ) );
 
-			tt.shutdown_and_join();
+			tt.stop();
 
 			UT_CHECK_EQ( events, 1 );
 		},
@@ -303,7 +317,7 @@ UT_UNIT_TEST( demands_deletion_during_processing_2 )
 	run_with_time_limit(
 		[]()
 		{
-			timer_thread_t tt;
+			timer_manager_t tt;
 
 			tt.start();
 
@@ -377,9 +391,7 @@ UT_UNIT_TEST( demands_deletion_during_processing_2 )
 						++events;
 					} );
 
-			std::this_thread::sleep_for( milliseconds( 700 ) );
-
-			tt.shutdown_and_join();
+			do_timer_loop_for( tt, milliseconds( 700 ) );
 
 			UT_CHECK_EQ( events, 12 );
 		},
@@ -392,16 +404,25 @@ UT_UNIT_TEST( shutdown_from_the_timer )
 	run_with_time_limit(
 		[]()
 		{
-			timer_thread_t tt;
+			timer_manager_t tt;
 
 			tt.start();
 
 			tt.activate( tt.allocate(), milliseconds( 25 ),
 				[&]() {
-					tt.shutdown();
+					tt.stop();
 				} );
 
-			tt.join();
+			std::this_thread::sleep_for( milliseconds( 40 ) );
+			tt.process_expired_timers();
+
+			// Manager must be stopped. An attemp to activate
+			// another timer should lead to an exception.
+			UT_CHECK_THROW( std::runtime_error,
+					tt.activate(
+							tt.allocate(),
+							milliseconds( 5 ),
+							[]() {} ) );
 		},
 		1,
 		"shutdown_from_the_timer" );
@@ -412,7 +433,7 @@ UT_UNIT_TEST( shutdown_with_restarts )
 	run_with_time_limit(
 		[]()
 		{
-			timer_thread_t tt;
+			timer_manager_t tt;
 
 			int events = 0;
 			for( int i = 0; i != 3; ++i )
@@ -420,12 +441,21 @@ UT_UNIT_TEST( shutdown_with_restarts )
 				tt.start();
 
 				tt.activate( tt.allocate(), milliseconds( 5 ),
-					[&]() {
+					[&] {
 						++events;
-						tt.shutdown();
+						tt.stop();
 					} );
 
-				tt.join();
+				std::this_thread::sleep_for( milliseconds( 10 ) );
+				tt.process_expired_timers();
+
+				// Manager must be stopped. An attemp to activate
+				// another timer should lead to an exception.
+				UT_CHECK_THROW( std::runtime_error,
+						tt.activate(
+								tt.allocate(),
+								milliseconds( 5 ),
+								[]() {} ) );
 			}
 
 			UT_CHECK_EQ( events, 3 );
@@ -433,15 +463,12 @@ UT_UNIT_TEST( shutdown_with_restarts )
 		1,
 		"shutdown_from_the_timer" );
 }
-#endif
 
 int main()
 {
 	UT_RUN_UNIT_TEST( no_demands )
 	UT_RUN_UNIT_TEST( schedule_when_not_started )
 	UT_RUN_UNIT_TEST( single_shot )
-
-#if 0
 	UT_RUN_UNIT_TEST( single_periodic )
 	UT_RUN_UNIT_TEST( several_single_shots )
 	UT_RUN_UNIT_TEST( several_periodics )
@@ -451,6 +478,5 @@ int main()
 	UT_RUN_UNIT_TEST( demands_deletion_during_processing_2 )
 	UT_RUN_UNIT_TEST( shutdown_from_the_timer )
 	UT_RUN_UNIT_TEST( shutdown_with_restarts )
-#endif
 }
 
