@@ -1041,8 +1041,6 @@ public :
 		}
 
 		m_heap.clear();
-
-		m_timer_in_processing = nullptr;
 	}
 
 private :
