@@ -394,18 +394,24 @@ protected :
 // timer_list_engine_t
 //
 //FIXME: document this!
-//FIXME: must be derived from timer_engine_common_t!
 template<
 	threading THREADING,
 	typename ERROR_LOGGER,
 	typename ACTOR_EXCEPTION_HANDLER >
 class timer_list_engine_t
+	:	public timer_engine_common_t<
+			THREADING, ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >
 {
-public :
-	static const threading threading = THREADING;
+	//! An alias for base class.
+	using base_type_t = timer_engine_common_t<
+			THREADING, ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >;
 
+public :
 	//! Default constructor.
 	timer_list_engine_t()
+		:	timer_list_engine_t(
+				ERROR_LOGGER(),
+				ACTOR_EXCEPTION_HANDLER() )
 	{}
 
 	//! Constructor with all parameters.
@@ -414,8 +420,7 @@ public :
 		ERROR_LOGGER error_logger,
 		//! An actor exception handler for timer thread.
 		ACTOR_EXCEPTION_HANDLER exception_handler )
-		:	m_error_logger( error_logger )
-		,	m_exception_handler( exception_handler )
+		:	base_type_t( error_logger, exception_handler )
 	{
 	}
 
@@ -597,12 +602,6 @@ private :
 	 * \name Object's attributes.
 	 * \{
 	 */
-	//! Error logger.
-	ERROR_LOGGER m_error_logger;
-
-	//! Exception handler.
-	ACTOR_EXCEPTION_HANDLER m_exception_handler;
-
 	//! Head of the list of timers.
 	list_timer_t * m_head = nullptr;
 
