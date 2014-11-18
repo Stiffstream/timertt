@@ -368,6 +368,8 @@ template<
 class timer_list_engine_t
 {
 public :
+	static const threading threading = THREADING;
+
 	//! Default constructor.
 	timer_list_engine_t()
 	{}
@@ -820,13 +822,9 @@ struct timer_manager_threading_dependent_part_t< threading::multi >
 // timer_manager_impl_template_t
 //
 //FIXME: document this!
-template<
-	threading THREADING,
-	typename ERROR_LOGGER,
-	typename ACTOR_EXCEPTION_HANDLER,
-	template< threading, typename, typename > class ENGINE >
+template< typename ENGINE >
 class timer_manager_impl_template_t
-	:	protected timer_manager_threading_dependent_part_t< THREADING > 
+	:	protected timer_manager_threading_dependent_part_t< ENGINE::threading > 
 {
 public :
 	//! Constructor with all parameters.
@@ -861,7 +859,7 @@ public :
 	}
 
 //FIXME: document this!
-	timer_object_holder_t< THREADING >
+	timer_object_holder_t< ENGINE::threading >
 	allocate()
 	{
 		return m_engine.allocate();
@@ -879,7 +877,7 @@ public :
 	void
 	activate(
 		//! Timer to be activated.
-		timer_object_holder_t< THREADING > timer,
+		timer_object_holder_t< ENGINE::threading > timer,
 		//! Pause for timer execution.
 		DURATION_1 pause,
 		//! Action for the timer.
@@ -921,7 +919,7 @@ public :
 	void
 	activate(
 		//! Timer to be activated.
-		timer_object_holder_t< THREADING > timer,
+		timer_object_holder_t< ENGINE::threading > timer,
 		//! Pause for timer execution.
 		DURATION_1 pause,
 		//! Repetition period.
@@ -968,7 +966,7 @@ public :
 	void
 	deactivate(
 		//! Timer to be deactivated.
-		timer_object_holder_t< THREADING > timer )
+		timer_object_holder_t< ENGINE::threading > timer )
 	{
 		typename timer_manager_impl_template_t::lock_guard_t locker{ *this };
 
@@ -987,7 +985,7 @@ public :
 private :
 	bool m_started = false;
 
-	ENGINE< THREADING, ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER > m_engine;
+	ENGINE m_engine;
 };
 
 //
@@ -2097,18 +2095,19 @@ template<
 	threading THREADING,
 	typename ERROR_LOGGER,
 	typename ACTOR_EXCEPTION_HANDLER >
-class timer_list_manager_template_t
-	: public details::timer_manager_impl_template_t<
-			THREADING,
-			ERROR_LOGGER,
-			ACTOR_EXCEPTION_HANDLER,
-			details::timer_list_engine_t > 
+class timer_list_manager_template_t : public
+		details::timer_manager_impl_template_t<
+				details::timer_list_engine_t<
+						THREADING,
+						ERROR_LOGGER,
+						ACTOR_EXCEPTION_HANDLER > > 
 {
-	typedef details::timer_manager_impl_template_t<
-					THREADING,
-					ERROR_LOGGER,
-					ACTOR_EXCEPTION_HANDLER,
-					details::timer_list_engine_t >
+	typedef
+			details::timer_manager_impl_template_t<
+					details::timer_list_engine_t<
+							THREADING,
+							ERROR_LOGGER,
+							ACTOR_EXCEPTION_HANDLER > >
 			base_type_t;
 
 public :
