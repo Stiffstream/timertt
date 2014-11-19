@@ -391,6 +391,560 @@ protected :
 };
 
 //
+// timer_wheel_engine_t
+//
+
+//FIXME: document this!
+template<
+	threading THREADING,
+	typename ERROR_LOGGER,
+	typename ACTOR_EXCEPTION_HANDLER >
+class timer_wheel_engine_t
+	:	public timer_engine_common_t<
+			THREADING, ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >
+{
+	//! An alias for base class.
+	using base_type_t = timer_engine_common_t<
+			THREADING, ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >;
+
+public :
+	//! Default wheel size.
+	static unsigned int
+	default_wheel_size() { return 1000; }
+
+	//! Default tick duration.
+	static monotonic_clock_t::duration
+	default_granularity() { return std::chrono::milliseconds( 10 ); }
+
+	//! Constructor with all parameters.
+	timer_wheel_engine_t(
+		//! Size of the wheel.
+		unsigned int wheel_size,
+		//! Size of time step for the timer_wheel.
+		monotonic_clock_t::duration granularity,
+		//! An error logger for timer thread.
+		ERROR_LOGGER error_logger,
+		//! An actor exception handler for timer thread.
+		ACTOR_EXCEPTION_HANDLER exception_handler )
+		:	base_type_t( error_logger, exception_handler )
+		,	m_wheel_size( wheel_size )
+		,	m_granularity( granularity )
+	{
+		m_wheel.resize( wheel_size );
+
+		m_current_tick_border = monotonic_clock_t::now() + m_granularity;
+	}
+
+	//! Destructor.
+	~timer_wheel_engine_t()
+	{
+		clear_all();
+	}
+
+	//! Create timer to be activated later.
+	timer_object_holder_t< THREADING >
+	allocate()
+	{
+		return timer_object_holder_t< THREADING >( new wheel_timer_t() );
+	}
+
+	//! Activate timer and schedule it for execution.
+	/*!
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is already activated.
+	 *
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
+	 * \tparam DURATION_2 actual type which represents time duration.
+	 */
+	template< class DURATION_1, class DURATION_2 >
+	void
+	activate(
+		//! Timer to be activated.
+		timer_object_holder_t< THREADING > timer,
+		//! Pause for timer execution.
+		DURATION_1 pause,
+		//! Repetition period.
+		//! If <tt>DURATION_2::zero() == period</tt> then timer will be
+		//! single-shot.
+		DURATION_2 period,
+		//! Action for the timer.
+		timer_action_t action )
+	{
+		auto * wheel_timer = timer.template cast_to< wheel_timer_t >();
+		ensure_timer_deactivated( wheel_timer );
+
+		wheel_timer->m_action = std::move(action);
+
+		// Timer must be taken under control.
+		timer_object_t< THREADING >::increment_references( wheel_timer );
+		// It is an active timer now.
+		wheel_timer->m_status = timer_status_t::active;
+
+		// Calculate the demand position in the wheel.
+		set_position_in_the_wheel(
+				wheel_timer,
+				duration_to_ticks( pause ) );
+
+		// Special calculations for the periodic demand.
+		if( monotonic_clock_t::duration::zero() != period )
+			wheel_timer->m_period = duration_to_ticks( period );
+		else
+			wheel_timer->m_period = 0;
+
+		insert_demand_to_wheel( wheel_timer );
+	}
+
+	//! Deactivate timer and remove it from the wheel.
+	void
+	deactivate( timer_object_holder_t< THREADING > timer )
+	{
+		auto wheel_timer = timer.template cast_to< wheel_timer_t >();
+		if( timer_status_t::active == wheel_timer->m_status )
+		{
+			// This is normal active timer. It can be safely
+			// deactivated and destroyed.
+			remove_timer_from_wheel( wheel_timer );
+
+			wheel_timer->m_status = timer_status_t::deactivated;
+
+			// Release timer object.
+			timer_object_t< THREADING >::decrement_references( wheel_timer );
+		}
+		else if( timer_status_t::wait_for_execution == wheel_timer->m_status )
+		{
+			// This timer is in execution list right now.
+			// We can only changed its status.
+			// Final deactivation will be done after execution of
+			// timers actions.
+			wheel_timer->m_status = timer_status_t::wait_for_deactivation;
+		}
+	}
+
+	/*!
+	 * \brief Build sublist of elapsed timers and process them all.
+	 */
+	template< typename UNIQUE_LOCK >
+	void
+	process_expired_timers(
+		//! Object's lock.
+		UNIQUE_LOCK & lock )
+	{
+		/*
+		 * NOTE: It is possible that period between consequtive
+		 * calls to process_expired_timers will be longer than
+		 * m_granuality (it is possible when engine is used inside
+		 * timer_manager). In that case it is necessary to process
+		 * several wheel positions at once.
+		 */
+		const auto now = monotonic_clock_t::now();
+		for(;;)
+		{
+			if( !m_current_tick_processed )
+			{
+				process_current_wheel_position( lock );
+
+				// After processing all current demands and rescheduling
+				// all periodic demands the current_position must be
+				// advanced.
+				m_current_position += 1;
+				if( m_current_position >= m_wheel_size )
+					m_current_position = 0;
+
+				m_current_tick_processed = true;
+			}
+
+			if( now >= m_current_tick_border )
+			{
+				// A switch to next tick is necessary.
+				m_current_tick_border += m_granularity;
+				m_current_tick_processed = false;
+			}
+		}
+	}
+
+	/*!
+	 * \brief Is empty timer list?
+	 *
+	 * \return false always
+	 */
+	bool
+	empty() const
+	{
+		return false;
+	}
+
+	/*!
+	 * \brief Get time point of the next timer.
+	 *
+	 * \attention Must be called only when \a !empty().
+	 */
+	monotonic_clock_t::time_point
+	nearest_time_point() const
+	{
+		if( !m_current_tick_processed )
+			return monotonic_clock_t::now();
+		else
+			return m_current_tick_border;
+	}
+
+	/*!
+	 * \brief Deactivate all timers and cleanup internal data structures.
+	 */
+	void
+	clear_all()
+	{
+		for( auto & item : m_wheel )
+		{
+			wheel_timer_t * timer = item.m_head;
+			item = wheel_item_t();
+
+			while( timer )
+			{
+				wheel_timer_t * t = timer;
+				timer = timer->m_next;
+
+				t->m_status = timer_status_t::deactivated;
+				timer_object_t< THREADING >::decrement_references( t );
+			}
+		}
+
+		// For the case of timer_engine restart.
+		m_current_tick_border = monotonic_clock_t::now() + m_granularity;
+		m_current_position = 0;
+	}
+
+private :
+	//! Type of wheel timer.
+	struct wheel_timer_t : public timer_object_t< THREADING >
+	{
+		//! Status of the timer.
+		typename threading_traits_t< THREADING >::status_holder_t m_status;
+
+		//! Position in the wheel.
+		unsigned int m_position = 0;
+		//! Full rolls of wheel before execution of demand.
+		unsigned int m_full_rolls_left = 0;
+
+		//! Period in ticks.
+		/*!
+		 * Zero means that demand is single shot.
+		 */
+		unsigned int m_period = 0;
+
+		//! Timer action.
+		timer_action_t m_action;
+
+		//! Previous demand in the list.
+		wheel_timer_t * m_prev = nullptr;
+		//! Next demand in the list.
+		wheel_timer_t * m_next = nullptr;
+
+		wheel_timer_t()
+		{
+			m_status = timer_status_t::deactivated;
+		}
+	};
+
+	//! Type of wheel's item.
+	struct wheel_item_t
+	{
+		//! Head of the demand's list.
+		wheel_timer_t * m_head = nullptr;
+		//! Tail of the demand's list.
+		wheel_timer_t * m_tail = nullptr;
+	};
+
+	/*!
+	 * \name Object's attributes.
+	 * \{
+	 */
+	//! Size of the wheel.
+	const unsigned int m_wheel_size;
+
+	//! Granularity of one time step.
+	const monotonic_clock_t::duration m_granularity;
+
+	//! Index of the current position in the wheel.
+	unsigned int m_current_position = 0;
+
+	//! Right border of the current tick.
+	/*!
+	 * This is the time point at which new tick must be started.
+	 */
+	monotonic_clock_t::time_point m_current_tick_border;
+
+	//! Has the current tick been processed?
+	bool m_current_tick_processed = false;
+
+	//! The wheel data.
+	std::vector< wheel_item_t > m_wheel;
+	/*!
+	 * \}
+	 */
+
+	/*!
+	 * \brief Hard check for deactivation state of the timer.
+	 *
+	 * \throw std::runtimer_error if timer is not deactivated.
+	 */
+	static void
+	ensure_timer_deactivated( const wheel_timer_t * timer )
+	{
+		if( timer_status_t::deactivated != timer->m_status )
+			throw std::runtime_error( "timer is not in 'deactivated' state" );
+	}
+
+	/*!
+	 * \brief Converion of duration to number of time steps.
+	 *
+	 * \note This implementation performs rounding up for duration
+	 * values. For example if granularity is 10ms and duration is
+	 * 15ms then result will be 2 time steps.
+	 *
+	 * \note Never return 0. If duration is less then granularity (even
+	 * after rounding up) the value 1 will be returned. E.g. timer
+	 * will be scheduled for the next time step.
+	 *
+	 * \tparam DURATION actual type for duration representation.
+	 */
+	template< class DURATION >
+	unsigned int
+	duration_to_ticks(
+		//! Time duration to be converted in time steps count.
+		DURATION d ) const
+	{
+		auto d_units = 
+				std::chrono::duration_cast< monotonic_clock_t::duration >( d )
+				.count();
+		auto g_units = m_granularity.count();
+
+		unsigned int r = static_cast< unsigned int >(
+				/*
+				 * Add g_units/2 for rounding up.
+				 * For example, if d is 24ms and granularity is 10
+				 * it will be (24+5)=29, and result will be 2.
+				 * But if d is 25ms then (25+5)=30 and result will be 3.
+				 */
+				(d_units + g_units/2) / g_units );
+		if( !r )
+			r = 1;
+		return r;
+	}
+
+	/*!
+	 * \brief Calculate and fill up wheel position for the timer.
+	 *
+	 * wheel_timer_t::m_position and wheel_timer_t::m_full_rolls_left
+	 * will be set for \a wheel_timer.
+	 */
+	void
+	set_position_in_the_wheel(
+		//! Timer to modify.
+		wheel_timer_t * wheel_timer,
+		//! Timeout for the timer is time steps.
+		unsigned int pause_in_ticks ) const
+	{
+		wheel_timer->m_position =
+				( m_current_position + pause_in_ticks ) % m_wheel_size;
+		wheel_timer->m_full_rolls_left = pause_in_ticks / m_wheel_size;
+	}
+
+	/*!
+	 * \brief Insert timer to the wheel.
+	 *
+	 * If there is a non-empty timer list for the timer wheel position
+	 * the \a wheel_timer will be added to the end of that list.
+	 */
+	void
+	insert_demand_to_wheel( wheel_timer_t * wheel_timer )
+	{
+		wheel_item_t & item = m_wheel[ wheel_timer->m_position ];
+		if( item.m_head )
+		{
+			// There is a list of demands for the wheel position.
+			// New demand must be added to the end of that list.
+			wheel_timer->m_prev = item.m_tail;
+			wheel_timer->m_next = nullptr;
+			item.m_tail->m_next = wheel_timer;
+			item.m_tail = wheel_timer;
+		}
+		else
+		{
+			// There is no list of demands for this wheel position yet.
+			// New list must be started.
+			wheel_timer->m_prev = wheel_timer->m_next = nullptr;
+			item.m_head = wheel_timer;
+			item.m_tail = wheel_timer;
+		}
+	}
+
+	/*!
+	 * \brief Remove timer from the timer_wheel.
+	 */
+	void
+	remove_timer_from_wheel( wheel_timer_t * wheel_timer )
+	{
+		if( wheel_timer->m_prev )
+			wheel_timer->m_prev->m_next = wheel_timer->m_next;
+		else
+			m_wheel[ wheel_timer->m_position ].m_head = wheel_timer->m_next;
+
+		if( wheel_timer->m_next )
+			wheel_timer->m_next->m_prev = wheel_timer->m_prev;
+		else
+			m_wheel[ wheel_timer->m_position ].m_tail = wheel_timer->m_prev;
+	}
+
+	/*!
+	 * \brief Detect elapsed timers for the current time step and
+	 * process them all.
+	 *
+	 * Object \a lock will be unlocked and then locked back.
+	 */
+	template< class UNIQUE_LOCK >
+	void
+	process_current_wheel_position(
+		UNIQUE_LOCK & lock )
+	{
+		wheel_timer_t * exec_list_head = make_exec_list();
+
+		if( exec_list_head )
+		{
+			exec_actions( lock, exec_list_head );
+
+			utilize_exec_list( exec_list_head );
+		}
+	}
+
+	/*!
+	 * \brief Make list of elapsed timers to be executed.
+	 */
+	wheel_timer_t *
+	make_exec_list()
+	{
+		wheel_timer_t * head = nullptr;
+		wheel_timer_t * tail = nullptr;
+
+		wheel_timer_t * timer = m_wheel[ m_current_position ].m_head;
+		while( timer )
+		{
+			if( timer->m_full_rolls_left )
+			{
+				timer->m_full_rolls_left -= 1;
+				timer = timer->m_next;
+			}
+			else
+			{
+				wheel_timer_t * t = timer;
+				timer = timer->m_next;
+
+				remove_timer_from_wheel( t );
+				t->m_status = timer_status_t::wait_for_execution;
+
+				if( head )
+				{
+					tail->m_next = t;
+					t->m_prev = tail;
+					t->m_next = nullptr;
+					tail = t;
+				}
+				else
+				{
+					head = tail = t;
+					t->m_prev = t->m_next = nullptr;
+				}
+			}
+		}
+
+		return head;
+	}
+
+	/*!
+	 * \brief Execute all active timers from the list.
+	 */
+	template< class UNIQUE_LOCK >
+	void
+	exec_actions(
+		//! Object lock.
+		//! This lock will be unlocked before execution of actions
+		//! and locked back after.
+		UNIQUE_LOCK & lock,
+		//! Head of execution list.
+		//! Cannot be nullptr.
+		wheel_timer_t * head )
+	{
+		lock.unlock();
+
+		while( head )
+		{
+			try
+			{
+				// Status of timer can be changed. So it must be checked
+				// just before execution. If timer is waiting for
+				// deregistration it must not be executed.
+				if( timer_status_t::wait_for_execution == head->m_status )
+					head->m_action();
+			}
+			catch( const std::exception & x )
+			{
+				this->m_exception_handler( x );
+			}
+			catch( ... )
+			{
+				std::ostringstream ss;
+				ss << __FILE__ << "(" << __LINE__ 
+					<< "): an unknown exception from timer action";
+				this->m_error_logger( ss.str() );
+				std::abort();
+			}
+
+			head = head->m_next;
+		}
+
+		lock.lock();
+	}
+
+	/*!
+	 * \brief Process list of elapsed timers after execution of
+	 * its actions.
+	 *
+	 * Active periodic timers will be rescheduled. All other timers
+	 * will be deactivated and removed.
+	 */
+	void
+	utilize_exec_list(
+		//! Head of execution list.
+		//! Cannot be null.
+		wheel_timer_t * head )
+	{
+		while( head )
+		{
+			wheel_timer_t * t = head;
+			head = head->m_next;
+
+			// Actual periodic timer must be rescheduled.
+			if( timer_status_t::wait_for_execution == t->m_status &&
+					t->m_period )
+			{
+				// Timer is active again.
+				t->m_status = timer_status_t::active;
+
+				set_position_in_the_wheel( t, t->m_period );
+
+				insert_demand_to_wheel( t );
+			}
+			else
+			{
+				// Timer must be utilized.
+				t->m_status = timer_status_t::deactivated;
+				timer_object_t< THREADING >::decrement_references( t );
+			}
+		}
+	}
+};
+
+//
 // timer_list_engine_t
 //
 //FIXME: document this!
@@ -2292,6 +2846,80 @@ private :
 using timer_wheel_thread_t = timer_wheel_thread_template_t<
 		default_error_logger,
 		default_actor_exception_handler >;
+
+//
+// timer_wheel_manager_template_t
+//
+//FIXME: document this!
+template<
+	threading THREADING,
+	typename ERROR_LOGGER,
+	typename ACTOR_EXCEPTION_HANDLER >
+class timer_wheel_manager_template_t : public
+		details::timer_manager_impl_template_t<
+				details::timer_wheel_engine_t<
+						THREADING,
+						ERROR_LOGGER,
+						ACTOR_EXCEPTION_HANDLER > > 
+{
+	typedef
+			details::timer_manager_impl_template_t<
+					details::timer_wheel_engine_t<
+							THREADING,
+							ERROR_LOGGER,
+							ACTOR_EXCEPTION_HANDLER > >
+			base_type_t;
+
+public :
+//FIXME: this method must be inherited from somewhere!
+	//! Default wheel size.
+	static unsigned int
+	default_wheel_size() { return 1000; }
+
+//FIXME: this method must be inherited from somewhere!
+	//! Default tick duration.
+	static monotonic_clock_t::duration
+	default_granularity() { return std::chrono::milliseconds( 10 ); }
+
+	//! Default constructor.
+	timer_wheel_manager_template_t()
+		:	timer_wheel_manager_template_t(
+				default_wheel_size(),
+				default_granularity(),
+				ERROR_LOGGER(),
+				ACTOR_EXCEPTION_HANDLER() )
+	{}
+
+	//! Constructor with wheel size and granularity parameters.
+	timer_wheel_manager_template_t(
+		//! Size of the wheel.
+		unsigned int wheel_size,
+		//! Size of time step for the timer_wheel.
+		monotonic_clock_t::duration granularity )
+		:	timer_wheel_manager_template_t(
+				wheel_size,
+				granularity,
+				ERROR_LOGGER(),
+				ACTOR_EXCEPTION_HANDLER() )
+	{}
+
+	//! Constructor with all parameters.
+	timer_wheel_manager_template_t(
+		//! Size of the wheel.
+		unsigned int wheel_size,
+		//! Size of time step for the timer_wheel.
+		monotonic_clock_t::duration granularity,
+		//! An error logger for timer thread.
+		ERROR_LOGGER error_logger,
+		//! An actor exception handler for timer thread.
+		ACTOR_EXCEPTION_HANDLER exception_handler )
+		:	base_type_t(
+				wheel_size,
+				granularity,
+				error_logger,
+				exception_handler )
+	{}
+};
 
 //
 // timer_list_thread_template_t
