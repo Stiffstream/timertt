@@ -560,6 +560,8 @@ public :
 				m_current_tick_border += m_granularity;
 				m_current_tick_processed = false;
 			}
+			else
+				break;
 		}
 	}
 

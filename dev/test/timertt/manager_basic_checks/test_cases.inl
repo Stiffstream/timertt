@@ -446,7 +446,7 @@ UT_UNIT_TEST( shutdown_with_restarts )
 						tt.stop();
 					} );
 
-				std::this_thread::sleep_for( milliseconds( 10 ) );
+				std::this_thread::sleep_for( milliseconds( 20 ) );
 				tt.process_expired_timers();
 
 				// Manager must be stopped. An attemp to activate
