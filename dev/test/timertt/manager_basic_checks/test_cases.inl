@@ -22,45 +22,12 @@ do_timer_loop_for(
 	}
 }
 
-UT_UNIT_TEST( no_demands )
-{
-	run_with_time_limit(
-		[]()
-		{
-			timer_manager_t tt;
-
-			tt.start();
-		},
-		1,
-		"no_demands" );
-}
-
-UT_UNIT_TEST( schedule_when_not_started )
-{
-	timer_manager_t tt;
-
-	UT_CHECK_THROW( std::runtime_error,
-			tt.activate(
-					tt.allocate(),
-					milliseconds( 5 ),
-					[]() {} ) );
-
-	UT_CHECK_THROW( std::runtime_error,
-			tt.activate(
-					tt.allocate(),
-					milliseconds( 5 ),
-					microseconds( 100 ),
-					[]() {} ) );
-}
-
 UT_UNIT_TEST( single_shot )
 {
 	run_with_time_limit(
 		[]()
 		{
 			timer_manager_t tt;
-
-			tt.start();
 
 			std::string v;
 
@@ -84,8 +51,6 @@ UT_UNIT_TEST( single_periodic )
 		{
 			timer_manager_t tt;
 
-			tt.start();
-
 			std::string v;
 			auto id = tt.allocate();
 
@@ -105,8 +70,6 @@ UT_UNIT_TEST( single_periodic )
 				tt.process_expired_timers();
 			}
 
-			tt.stop();
-
 			UT_CHECK_EQ( v, "1111" );
 		},
 		1,
@@ -119,8 +82,6 @@ UT_UNIT_TEST( several_single_shots )
 		[]()
 		{
 			timer_manager_t tt;
-
-			tt.start();
 
 			std::string v;
 
@@ -157,8 +118,6 @@ UT_UNIT_TEST( several_periodics )
 		[]()
 		{
 			timer_manager_t tt;
-
-			tt.start();
 
 			std::string v;
 
@@ -219,8 +178,6 @@ UT_UNIT_TEST( anonymous_timers )
 		{
 			timer_manager_t tt;
 
-			tt.start();
-
 			std::string v;
 
 			tt.activate( milliseconds( 40 ), [&v]() { v += "(s1)"; } );
@@ -245,8 +202,6 @@ UT_UNIT_TEST( demands_cleanup_on_shutdown )
 		{
 			timer_manager_t tt;
 
-			tt.start();
-
 			int dealloc_counter = 0;
 			struct decrementer_t
 			{
@@ -266,7 +221,7 @@ UT_UNIT_TEST( demands_cleanup_on_shutdown )
 				tt.activate( tt.allocate(), seconds( 10 ), [d3]() {} );
 			}
 
-			tt.stop();
+			tt.reset();
 
 			UT_CHECK_EQ( dealloc_counter, -3 );
 		},
@@ -280,8 +235,6 @@ UT_UNIT_TEST( demands_deletion_during_processing )
 		[]()
 		{
 			timer_manager_t tt;
-
-			tt.start();
 
 			int events = 0;
 
@@ -304,7 +257,7 @@ UT_UNIT_TEST( demands_deletion_during_processing )
 
 			do_timer_loop_for( tt, milliseconds( 250 ) );
 
-			tt.stop();
+			tt.reset();
 
 			UT_CHECK_EQ( events, 1 );
 		},
@@ -318,8 +271,6 @@ UT_UNIT_TEST( demands_deletion_during_processing_2 )
 		[]()
 		{
 			timer_manager_t tt;
-
-			tt.start();
 
 			int events = 0;
 
@@ -399,36 +350,7 @@ UT_UNIT_TEST( demands_deletion_during_processing_2 )
 		"demands_deletion_during_processing_2" );
 }
 
-UT_UNIT_TEST( shutdown_from_the_timer )
-{
-	run_with_time_limit(
-		[]()
-		{
-			timer_manager_t tt;
-
-			tt.start();
-
-			tt.activate( tt.allocate(), milliseconds( 25 ),
-				[&]() {
-					tt.stop();
-				} );
-
-			std::this_thread::sleep_for( milliseconds( 40 ) );
-			tt.process_expired_timers();
-
-			// Manager must be stopped. An attemp to activate
-			// another timer should lead to an exception.
-			UT_CHECK_THROW( std::runtime_error,
-					tt.activate(
-							tt.allocate(),
-							milliseconds( 5 ),
-							[]() {} ) );
-		},
-		1,
-		"shutdown_from_the_timer" );
-}
-
-UT_UNIT_TEST( shutdown_with_restarts )
+UT_UNIT_TEST( reset_test )
 {
 	run_with_time_limit(
 		[]()
@@ -438,36 +360,25 @@ UT_UNIT_TEST( shutdown_with_restarts )
 			int events = 0;
 			for( int i = 0; i != 3; ++i )
 			{
-				tt.start();
-
 				tt.activate( tt.allocate(), milliseconds( 5 ),
 					[&] {
 						++events;
-						tt.stop();
 					} );
 
-				std::this_thread::sleep_for( milliseconds( 20 ) );
+				std::this_thread::sleep_for( milliseconds( 25 ) );
 				tt.process_expired_timers();
 
-				// Manager must be stopped. An attemp to activate
-				// another timer should lead to an exception.
-				UT_CHECK_THROW( std::runtime_error,
-						tt.activate(
-								tt.allocate(),
-								milliseconds( 5 ),
-								[]() {} ) );
+				tt.reset();
 			}
 
 			UT_CHECK_EQ( events, 3 );
 		},
 		1,
-		"shutdown_from_the_timer" );
+		"reset_test" );
 }
 
 int main()
 {
-	UT_RUN_UNIT_TEST( no_demands )
-	UT_RUN_UNIT_TEST( schedule_when_not_started )
 	UT_RUN_UNIT_TEST( single_shot )
 	UT_RUN_UNIT_TEST( single_periodic )
 	UT_RUN_UNIT_TEST( several_single_shots )
@@ -476,7 +387,6 @@ int main()
 	UT_RUN_UNIT_TEST( demands_cleanup_on_shutdown )
 	UT_RUN_UNIT_TEST( demands_deletion_during_processing )
 	UT_RUN_UNIT_TEST( demands_deletion_during_processing_2 )
-	UT_RUN_UNIT_TEST( shutdown_from_the_timer )
-	UT_RUN_UNIT_TEST( shutdown_with_restarts )
+	UT_RUN_UNIT_TEST( reset_test )
 }
 

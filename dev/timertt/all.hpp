@@ -1867,25 +1867,10 @@ public :
 
 //FIXME: document this!
 	void
-	start()
+	reset()
 	{
 		typename timer_manager_impl_template_t::lock_guard_t locker{ *this };
-		if( this->m_started )
-			throw std::runtime_error( "timer_manager already started" );
-
-		this->m_started = true;
-	}
-
-//FIXME: document this!
-	void
-	stop()
-	{
-		typename timer_manager_impl_template_t::lock_guard_t locker{ *this };
-		if( this->m_started )
-		{
-			this->m_started = false;
-			m_engine.clear_all();
-		}
+		m_engine.clear_all();
 	}
 
 //FIXME: document this!
@@ -1960,8 +1945,6 @@ public :
 		timer_action_t action )
 	{
 		typename timer_manager_impl_template_t::lock_guard_t locker{ *this };
-		if( !this->m_started )
-			throw std::runtime_error( "timer_manager must be started" );
 
 		m_engine.activate( std::move( timer ), pause, period,
 				std::move( action ) );
@@ -2013,9 +1996,6 @@ public :
 	}
 
 private :
-//FIXME: document this!
-	bool m_started = false;
-
 //FIXME: document this!
 	ENGINE m_engine;
 };
