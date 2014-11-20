@@ -2362,11 +2362,17 @@ protected :
 // manager_impl_template
 //
 
-//FIXME: document this!
+/*!
+ * \since v.1.1.0
+ * \brief Template-based implementation of timer manager.
+ *
+ * \tparam ENGINE actual type of engine to be used.
+ */
 template< typename ENGINE >
 class manager_impl_template
 	:	public basic_methods_impl_mixin< ENGINE, consumer_type::manager > 
 {
+	//! Shorthand for base type.
 	using base_type = basic_methods_impl_mixin<
 			ENGINE,
 			consumer_type::manager >;
@@ -2380,7 +2386,7 @@ public :
 	{
 	}
 
-//FIXME: document this!
+	//! Reset all timers and return manager to the initial state.
 	void
 	reset()
 	{
@@ -2388,7 +2394,7 @@ public :
 		this->m_engine.clear_all();
 	}
 
-//FIXME: document this!
+	//! Perform processing of expired timers.
 	void
 	process_expired_timers()
 	{
@@ -2399,14 +2405,20 @@ public :
 };
 
 //
-// thread_impl_template_t
+// thread_impl_template
 //
 
-//FIXME: document this!
+/*!
+ * \since v.1.1.0
+ * \brief Template-based implementation of timer thread.
+ *
+ * \tparam ENGINE actual type of engine to be used.
+ */
 template< typename ENGINE >
-class thread_impl_template_t
+class thread_impl_template
 	:	public basic_methods_impl_mixin< ENGINE, consumer_type::thread > 
 {
+	//! Shorthand for base type.
 	using base_type = basic_methods_impl_mixin<
 			ENGINE,
 			consumer_type::thread >;
@@ -2414,13 +2426,17 @@ class thread_impl_template_t
 public :
 	//! Constructor with all parameters.
 	template< typename... ARGS >
-	thread_impl_template_t(
+	thread_impl_template(
 		ARGS && ... args )
 		:	base_type( std::forward< ARGS >(args)... )
 	{
 	}
 
-	~thread_impl_template_t()
+	//! Destructor.
+	/*!
+	 * Calls shutdown_and_join()
+	 */
+	~thread_impl_template()
 	{
 		shutdown_and_join();
 	}
@@ -2440,7 +2456,7 @@ public :
 			this->m_shutdown = false;
 
 		this->m_thread = std::make_shared< std::thread >(
-				std::bind( &thread_impl_template_t::body, this ) );
+				std::bind( &thread_impl_template::body, this ) );
 	}
 
 	//! Initiate shutdown for the timer thread without waiting for completion.
@@ -2540,34 +2556,14 @@ protected :
 } /* namespace details */
 
 //
-// timer_wheel_thread_template_t
+// timer_wheel_thread_template
 //
 
 /*!
  * \brief A timer wheel thread template.
  *
- * This class uses <a href="http://www.cs.columbia.edu/~nahum/w6998/papers/ton97-timing-wheels.pdf">timer_wheel</a>
- * mechanism to work with timers.
- * This mechanism is efficient for working with big amount of timers.
- * But it requires that timer thread is working always, even in case
- * when there is no timers. Another price for timer_wheel is the
- * granularity of timer steps.
- *
- * Timer wheel data structure consists from one fixed size vector
- * (the wheel) and several double-linked list (one list for every wheel
- * slot). 
- *
- * At the start of next time step thread switches to next wheel position
- * and handles timers from this position list. After processing
- * all elapsed single-shot timers will be removed and deactivated, and
- * all elapsed periodic timers will be rescheduled for the new time steps.
- *
- * \note At the beginnig of time step thread detects elapsed timers, then
- * unblocks object mutex and calls timer actors for those timers. It means
- * that actors call call timer thread object. And there won't be frequent
- * mutex locking/unlocking operations for building and processing
- * list of elapsed timers. This allows to process millions of timer actor
- * per second.
+ * Please see description of details::timer_wheel_engine for the details
+ * of the timer wheel mechanism.
  *
  * \tparam ERROR_LOGGER type of logger for errors detected during
  * timer thread execution. Interface for error logger is defined
@@ -2580,16 +2576,16 @@ protected :
 template<
 	typename ERROR_LOGGER,
 	typename ACTOR_EXCEPTION_HANDLER >
-class timer_wheel_thread_template_t
+class timer_wheel_thread_template
 	: public
-		details::thread_impl_template_t<
+		details::thread_impl_template<
 				details::timer_wheel_engine<
 						thread_safety::safe,
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
 	using base_type =
-			details::thread_impl_template_t<
+			details::thread_impl_template<
 					details::timer_wheel_engine<
 							thread_safety::safe,
 							ERROR_LOGGER,
@@ -2597,8 +2593,8 @@ class timer_wheel_thread_template_t
 
 public :
 	//! Default constructor.
-	timer_wheel_thread_template_t()
-		:	timer_wheel_thread_template_t(
+	timer_wheel_thread_template()
+		:	timer_wheel_thread_template(
 				base_type::default_wheel_size(),
 				base_type::default_granularity(),
 				ERROR_LOGGER(),
@@ -2606,12 +2602,12 @@ public :
 	{}
 
 	//! Constructor with wheel size and granularity parameters.
-	timer_wheel_thread_template_t(
+	timer_wheel_thread_template(
 		//! Size of the wheel.
 		unsigned int wheel_size,
 		//! Size of time step for the timer_wheel.
 		monotonic_clock::duration granularity )
-		:	timer_wheel_thread_template_t(
+		:	timer_wheel_thread_template(
 				wheel_size,
 				granularity,
 				ERROR_LOGGER(),
@@ -2619,7 +2615,7 @@ public :
 	{}
 
 	//! Constructor with all parameters.
-	timer_wheel_thread_template_t(
+	timer_wheel_thread_template(
 		//! Size of the wheel.
 		unsigned int wheel_size,
 		//! Size of time step for the timer_wheel.
@@ -2641,19 +2637,39 @@ public :
 //
 
 //! An alias for default timer_wheel thread implementation.
-using timer_wheel_thread_t = timer_wheel_thread_template_t<
+/*!
+ * \note For compatibility with previous version.
+ */
+using timer_wheel_thread_t = timer_wheel_thread_template<
 		default_error_logger,
 		default_actor_exception_handler >;
 
 //
-// timer_wheel_manager_template_t
+// timer_wheel_manager_template
 //
-//FIXME: document this!
+/*!
+ * \since v.1.1.0
+ * \brief A timer wheel manager template.
+ *
+ * \note Please see description of details::timer_wheel_engine for the details
+ * of the timer wheel mechanism.
+ *
+ * \tparam THREAD_SAFETY Thread-safety indicator.
+ * Must be timertt::thread_safety::unsafe or timertt::thread_safety::safe.
+ *
+ * \tparam ERROR_LOGGER type of logger for errors detected during
+ * timer handling. Interface for error logger is defined
+ * by default_error_logger class.
+ *
+ * \tparam ACTOR_EXCEPTION_HANDLER type of handler for dealing with
+ * exceptions thrown from timer actors. Interface for exception handler
+ * is defined by default_actor_exception_handler.
+ */
 template<
 	typename THREAD_SAFETY,
 	typename ERROR_LOGGER,
 	typename ACTOR_EXCEPTION_HANDLER >
-class timer_wheel_manager_template_t
+class timer_wheel_manager_template
 	: public
 		details::manager_impl_template<
 				details::timer_wheel_engine<
@@ -2661,6 +2677,7 @@ class timer_wheel_manager_template_t
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
+	//! Shorthand for base type.
 	using base_type = 
 			details::manager_impl_template<
 					details::timer_wheel_engine<
@@ -2670,8 +2687,8 @@ class timer_wheel_manager_template_t
 
 public :
 	//! Default constructor.
-	timer_wheel_manager_template_t()
-		:	timer_wheel_manager_template_t(
+	timer_wheel_manager_template()
+		:	timer_wheel_manager_template(
 				base_type::default_wheel_size(),
 				base_type::default_granularity(),
 				ERROR_LOGGER(),
@@ -2679,12 +2696,12 @@ public :
 	{}
 
 	//! Constructor with wheel size and granularity parameters.
-	timer_wheel_manager_template_t(
+	timer_wheel_manager_template(
 		//! Size of the wheel.
 		unsigned int wheel_size,
 		//! Size of time step for the timer_wheel.
 		monotonic_clock::duration granularity )
-		:	timer_wheel_manager_template_t(
+		:	timer_wheel_manager_template(
 				wheel_size,
 				granularity,
 				ERROR_LOGGER(),
@@ -2692,7 +2709,7 @@ public :
 	{}
 
 	//! Constructor with all parameters.
-	timer_wheel_manager_template_t(
+	timer_wheel_manager_template(
 		//! Size of the wheel.
 		unsigned int wheel_size,
 		//! Size of time step for the timer_wheel.
@@ -2710,36 +2727,14 @@ public :
 };
 
 //
-// timer_list_thread_template_t
+// timer_list_thread_template
 //
 
 /*!
  * \brief A timer list thread template.
  *
- * This thread uses double-linked list of timers as timer mechanism.
- * This list is ordered. The head of the list is the timer with the
- * minimum time point.
- *
- * Thread sleeps until the first timer in the list elapsed. Then
- * thread build sublist of elapsed timers and process them.
- * Single-shot timers are removed after processing. Periodic
- * timers rescheduled (inserted into appropriate places in the list).
- *
- * \note After building sublist of elapsed timers thread
- * unblocks object mutex and calls timer actors for timers from the sublist.
- * And locks object back right after processing. It means
- * that actors call call timer thread object. And there won't be frequent
- * mutex locking/unlocking operations for building and processing
- * sublist of elapsed timers. This allows to process millions of timer actor
- * per second.
- *
- * \attention This type of timer thread is good for situations
- * where there are many timers with equal pauses and repetition periods.
- * In that cases almost all timers will be added to the end of the
- * list. But if there are many timers with very different pauses then
- * operation of activating and rescheduling of timers will be too
- * expensive. Timer thread based on timer_wheel or timer_heap is
- * more appropriate for that scenario.
+ * \note Please see description of details::timer_list_engine for the
+ * details of this timer mechanism.
  *
  * \tparam ERROR_LOGGER type of logger for errors detected during
  * timer thread execution. Interface for error logger is defined
@@ -2752,16 +2747,16 @@ public :
 template<
 	typename ERROR_LOGGER,
 	typename ACTOR_EXCEPTION_HANDLER >
-class timer_list_thread_template_t
+class timer_list_thread_template
 	: public
-		details::thread_impl_template_t<
+		details::thread_impl_template<
 				details::timer_list_engine<
 						thread_safety::safe,
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
 	using base_type =
-			details::thread_impl_template_t<
+			details::thread_impl_template<
 					details::timer_list_engine<
 							thread_safety::safe,
 							ERROR_LOGGER,
@@ -2769,11 +2764,11 @@ class timer_list_thread_template_t
 
 public :
 	//! Default constructor.
-	timer_list_thread_template_t()
+	timer_list_thread_template()
 	{}
 
 	//! Constructor with all parameters.
-	timer_list_thread_template_t(
+	timer_list_thread_template(
 		ERROR_LOGGER error_logger,
 		ACTOR_EXCEPTION_HANDLER actor_exception_handler )
 		:	base_type( error_logger, actor_exception_handler )
@@ -2786,19 +2781,39 @@ public :
 //
 
 //! An alias for default timer_list thread implementation.
-using timer_list_thread_t = timer_list_thread_template_t<
+/*!
+ * \note For compatibility with previous versions.
+ */
+using timer_list_thread_t = timer_list_thread_template<
 		default_error_logger,
 		default_actor_exception_handler >;
 
 //
-// timer_list_manager_template_t
+// timer_list_manager_template
 //
-//FIXME: document this!
+/*!
+ * \since v.1.1.0
+ * \brief A timer list thread template.
+ *
+ * \note Please see description of details::timer_list_engine for the
+ * details of this timer mechanism.
+ *
+ * \tparam THREAD_SAFETY Thread-safety indicator.
+ * Must be timertt::thread_safety::unsafe or timertt::thread_safety::safe.
+ *
+ * \tparam ERROR_LOGGER type of logger for errors detected during
+ * timer handling. Interface for error logger is defined
+ * by default_error_logger class.
+ *
+ * \tparam ACTOR_EXCEPTION_HANDLER type of handler for dealing with
+ * exceptions thrown from timer actors. Interface for exception handler
+ * is defined by default_actor_exception_handler.
+ */
 template<
 	typename THREAD_SAFETY,
 	typename ERROR_LOGGER,
 	typename ACTOR_EXCEPTION_HANDLER >
-class timer_list_manager_template_t
+class timer_list_manager_template
 	: public
 		details::manager_impl_template<
 				details::timer_list_engine<
@@ -2815,11 +2830,11 @@ class timer_list_manager_template_t
 
 public :
 	//! Default constructor.
-	timer_list_manager_template_t()
+	timer_list_manager_template()
 	{}
 
 	//! Constructor with all parameters.
-	timer_list_manager_template_t(
+	timer_list_manager_template(
 		ERROR_LOGGER error_logger,
 		ACTOR_EXCEPTION_HANDLER actor_exception_handler )
 		:	base_type( error_logger, actor_exception_handler )
@@ -2828,30 +2843,14 @@ public :
 };
 
 //
-// timer_heap_thread_template_t
+// timer_heap_thread_template
 //
 
 /*!
  * \brief A timer heap thread template.
  *
- * This timer thread uses timer mechanism based on
- * <a href="http://en.wikipedia.org/wiki/Heap_%28data_structure%29">heap data structure</a>.
- * The timer with the earlier time point is on the top of
- * the heap. When this timer elapsed and removed next timer with the
- * eralier time point is going to the top of the heap.
- *
- * This implementation uses array-based <a
- * href="http://en.wikipedia.org/wiki/Binary_heap">binary heap</a>. The array
- * is growing as necessary to hold all the timers. The initial size of that
- * array can be specified in the constructor.
- *
- * \note Unlike timer_wheel and timer_list threads this thread unlock and
- * lock its mutex for processing every timers. It means that processing
- * speed of this thread will be slower then for timer_wheel or
- * timer_list threads. But this type of thread doesn't consume resources
- * when there is no timers (unlike timer_wheel thread). And has very
- * efficient activation and deactivation procedures (unlike timer_list
- * thread).
+ * \note Please see description of details::timer_heap_engine for the
+ * details about this timer mechanism.
  *
  * \tparam ERROR_LOGGER type of logger for errors detected during
  * timer thread execution. Interface for error logger is defined
@@ -2864,16 +2863,17 @@ public :
 template<
 	typename ERROR_LOGGER,
 	typename ACTOR_EXCEPTION_HANDLER >
-class timer_heap_thread_template_t
+class timer_heap_thread_template
 	: public
-		details::thread_impl_template_t<
+		details::thread_impl_template<
 				details::timer_heap_engine<
 						thread_safety::safe,
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
+	//! Shorthand for base type.
 	using base_type =
-			details::thread_impl_template_t<
+			details::thread_impl_template<
 					details::timer_heap_engine<
 							thread_safety::safe,
 							ERROR_LOGGER,
@@ -2885,25 +2885,25 @@ public :
 	 * Value default_initial_heap_capacity() is used as initial
 	 * heap array size.
 	 */
-	timer_heap_thread_template_t()
-		:	timer_heap_thread_template_t(
+	timer_heap_thread_template()
+		:	timer_heap_thread_template(
 				base_type::default_initial_heap_capacity(),
 				ERROR_LOGGER(),
 				ACTOR_EXCEPTION_HANDLER() )
 	{}
 
 	//! Constructor to specify initial capacity of heap-array.
-	timer_heap_thread_template_t(
+	timer_heap_thread_template(
 		//! An initial size for heap array.
 		std::size_t initial_heap_capacity )
-		:	timer_heap_thread_template_t(
+		:	timer_heap_thread_template(
 				initial_heap_capacity,
 				ERROR_LOGGER(),
 				ACTOR_EXCEPTION_HANDLER() )
 	{}
 
 	//! Constructor with all parameters.
-	timer_heap_thread_template_t(
+	timer_heap_thread_template(
 		//! An initial size for heap array.
 		std::size_t initial_heap_capacity,
 		//! An error logger for timer thread.
@@ -2922,19 +2922,38 @@ public :
 //
 
 //! An alias for default timer_list thread implementation.
-using timer_heap_thread_t = timer_heap_thread_template_t<
+/*!
+ * \note For compatibility with previous versions.
+ */
+using timer_heap_thread_t = timer_heap_thread_template<
 		default_error_logger,
 		default_actor_exception_handler >;
 
 //
-// timer_heap_manager_template_t
+// timer_heap_manager_template
 //
-//FIXME: document this!
+/*!
+ * \brief A timer heap manager template.
+ *
+ * \note Please see description of details::timer_heap_engine for the
+ * details about this timer mechanism.
+ *
+ * \tparam THREAD_SAFETY Thread-safety indicator.
+ * Must be timertt::thread_safety::unsafe or timertt::thread_safety::safe.
+ *
+ * \tparam ERROR_LOGGER type of logger for errors detected during
+ * timer handling. Interface for error logger is defined
+ * by default_error_logger class.
+ *
+ * \tparam ACTOR_EXCEPTION_HANDLER type of handler for dealing with
+ * exceptions thrown from timer actors. Interface for exception handler
+ * is defined by default_actor_exception_handler.
+ */
 template<
 	typename THREAD_SAFETY,
 	typename ERROR_LOGGER,
 	typename ACTOR_EXCEPTION_HANDLER >
-class timer_heap_manager_template_t
+class timer_heap_manager_template
 	: public
 		details::manager_impl_template<
 				details::timer_heap_engine<
@@ -2942,6 +2961,7 @@ class timer_heap_manager_template_t
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
+	//! Shorthand for base type.
 	using base_type =
 		details::manager_impl_template<
 				details::timer_heap_engine<
@@ -2955,25 +2975,25 @@ public :
 	 * Value default_initial_heap_capacity() is used as initial
 	 * heap array size.
 	 */
-	timer_heap_manager_template_t()
-		:	timer_heap_manager_template_t(
+	timer_heap_manager_template()
+		:	timer_heap_manager_template(
 				base_type::default_initial_heap_capacity(),
 				ERROR_LOGGER(),
 				ACTOR_EXCEPTION_HANDLER() )
 	{}
 
 	//! Constructor to specify initial capacity of heap-array.
-	timer_heap_manager_template_t(
+	timer_heap_manager_template(
 		//! An initial size for heap array.
 		std::size_t initial_heap_capacity )
-		:	timer_heap_manager_template_t(
+		:	timer_heap_manager_template(
 				initial_heap_capacity,
 				ERROR_LOGGER(),
 				ACTOR_EXCEPTION_HANDLER() )
 	{}
 
 	//! Constructor with all parameters.
-	timer_heap_manager_template_t(
+	timer_heap_manager_template(
 		//! An initial size for heap array.
 		std::size_t initial_heap_capacity,
 		//! An error logger for timer thread.

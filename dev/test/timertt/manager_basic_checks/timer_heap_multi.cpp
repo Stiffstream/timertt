@@ -1,6 +1,6 @@
 #include <timertt/all.hpp>
 
-typedef timertt::timer_heap_manager_template_t<
+typedef timertt::timer_heap_manager_template<
 		timertt::thread_safety::safe,
 		timertt::default_error_logger,
 		timertt::default_actor_exception_handler >

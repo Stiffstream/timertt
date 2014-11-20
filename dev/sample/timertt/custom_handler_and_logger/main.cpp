@@ -26,7 +26,7 @@ int main()
 	};
 
 	// Custom timer thread.
-	timer_list_thread_template_t<
+	timer_list_thread_template<
 					function< void(const string &) >,
 					decltype(handler) >
 			tt{ bind( log_error, &cout, _1 ), handler };
