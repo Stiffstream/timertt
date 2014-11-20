@@ -2009,7 +2009,11 @@ private :
 // thread_unsafe_manager_mixin
 //
 
-//FIXME: document this!
+/*!
+ * \since v.1.1.0
+ * \brief A mixin which must be used as base class for not-thread-safe
+ * timer managers.
+ */
 struct thread_unsafe_manager_mixin
 {
 	class lock_guard
@@ -2031,11 +2035,17 @@ struct thread_unsafe_manager_mixin
 //
 // thread_safe_manager_mixin
 //
-//FIXME: document this!
+/*!
+ * \since v.1.1.0
+ * \brief A mixin which must be used as base class for thread-safe
+ * timer managers.
+ */
 struct thread_safe_manager_mixin
 {
+	//! Timer manager's lock.
 	std::mutex m_lock;
 
+	//! A special wrapper around actual std::unique_lock.
 	class lock_guard
 	{
 		std::unique_lock< std::mutex > m_lock;
@@ -2060,14 +2070,26 @@ struct thread_safe_manager_mixin
 // thread_mixin
 //
 
-//FIXME: document this!
+/*!
+ * \since v.1.1.0
+ * \brief A mixin which must be used as base class for timer threads.
+ */
 struct thread_mixin
 {
+	//! Timer thread's lock.
 	std::mutex m_lock;
+
+	//! Condition variable for waiting for next event.
 	std::condition_variable m_condition;
 
+	//! Underlying thread object.
+	/*!
+	 * \note Will be created during timer thread start and
+	 * destroyed after timer thread shutdown.
+	 */
 	std::shared_ptr< std::thread > m_thread;
 
+	//! A special wrapper around actual std::unique_lock.
 	class lock_guard
 	{
 		std::unique_lock< std::mutex > m_lock;
@@ -2080,10 +2102,15 @@ struct thread_mixin
 		void lock() { m_lock.lock(); }
 		void unlock() { m_lock.unlock(); }
 
+		//! Accessor for actual std::unique_lock object.
 		std::unique_lock< std::mutex > &
 		actual_lock() { return m_lock; }
 	};
 
+	//! Checks that timer thread is really started.
+	/*!
+	 * \throw std::exception if thread is not started.
+	 */
 	void
 	ensure_started()
 	{
@@ -2091,6 +2118,7 @@ struct thread_mixin
 			throw std::runtime_error( "timer thread is not started" );
 	}
 
+	//! Sends notification to timer thread.
 	void
 	notify()
 	{
@@ -2098,34 +2126,66 @@ struct thread_mixin
 	}
 };
 
-//FIXME: document this!
+/*!
+ * \since v.1.1.0
+ * \brief A type-container for types of engine-consumers.
+ */
 struct consumer_type
 {
+	/*!
+	 * \since v.1.1.0
+	 * \brief Indicator that an engine will be owned by timer manager.
+	 */
 	struct manager {};
+	/*!
+	 * \since v.1.1.0
+	 * \brief Indicator that an engine will be owned by timer thread.
+	 */
 	struct thread {};
 };
 
-//FIXME: document this!
+/*!
+ * \since v.1.1.0
+ * \brief A selector of actual mixin type for timer manager or timer thread.
+ *
+ * \attention This type is empty because all actual content will be
+ * defined in specializations.
+ */
 template< typename THREAD_SAFETY, typename CONSUMER >
 struct mixin_selector
 {
 };
 
+/*!
+ * \since v.1.1.0
+ * \brief A selector of actual mixin type for not-thread-safe timer manager.
+ */
 template<>
 struct mixin_selector< thread_safety::unsafe, consumer_type::manager >
 {
+	//! Actual type of the mixin.
 	using type = thread_unsafe_manager_mixin;
 };
 
+/*!
+ * \since v.1.1.0
+ * \brief A selector of actual mixin type for thread-safe timer manager.
+ */
 template<>
 struct mixin_selector< thread_safety::safe, consumer_type::manager >
 {
+	//! Actual type of the mixin.
 	using type = thread_safe_manager_mixin;
 };
 
+/*!
+ * \since v.1.1.0
+ * \brief A selector of actual mixin type for timer thread.
+ */
 template<>
 struct mixin_selector< thread_safety::safe, consumer_type::thread >
 {
+	//! Actual type of the mixin.
 	using type = thread_mixin;
 };
 
@@ -2133,7 +2193,15 @@ struct mixin_selector< thread_safety::safe, consumer_type::thread >
 // basic_methods_impl_mixin
 //
 
-//FIXME: document this!
+/*!
+ * \since v.1.1.0
+ * \brief A implementation of basic methods for timer managers and
+ * timer threads.
+ *
+ * \tparam ENGINE actual type of engine to be used.
+ * \tparam CONSUMER type of engine consumer (e.g. consumer_type::manager or
+ * consumer_type::thread).
+ */
 template<
 	typename ENGINE,
 	typename CONSUMER >
@@ -2141,9 +2209,11 @@ class basic_methods_impl_mixin
 	:	protected mixin_selector< typename ENGINE::thread_safety, CONSUMER >::type
 	,	public ENGINE::defaults_type
 {
+	//! Shorthand for actual mixin type.
 	using mixin_type = typename mixin_selector<
 			typename ENGINE::thread_safety, CONSUMER >::type;
 
+	//! Shorthand for timer objects' smart pointer.
 	using timer_holder = timer_object_holder< typename ENGINE::thread_safety >;
 
 public :
@@ -2155,7 +2225,11 @@ public :
 	{
 	}
 
-//FIXME: document this!
+	/*!
+	 * \brief Allocate of new timer object.
+	 *
+	 * \note This object must be activated by activate() methods.
+	 */
 	timer_holder
 	allocate()
 	{
@@ -2211,7 +2285,15 @@ public :
 				std::move( action ) );
 	}
 
-//FIXME: document this!
+	//! Activate timer and schedule it for execution.
+	/*!
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is already activated.
+	 *
+	 * \tparam DURATION_1 actual type which represents time duration.
+	 * \tparam DURATION_2 actual type which represents time duration.
+	 */
 	template< class DURATION_1, class DURATION_2 >
 	void
 	activate(
@@ -2272,7 +2354,7 @@ public :
 	}
 
 protected :
-//FIXME: document this!
+	//! Actual timer engine instance.
 	ENGINE m_engine;
 };
 
