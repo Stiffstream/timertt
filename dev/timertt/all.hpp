@@ -1056,22 +1056,69 @@ private :
 };
 
 //
-// timer_list_engine_defaults_t
+// timer_list_engine_defaults
 //
-//FIXME: document this!
-struct timer_list_engine_defaults_t
+/*!
+ * \since v.1.1.0
+ * \brief Container for static method with default values for
+ * timer_list engine.
+ *
+ * \note At this moment timer_list engine doesn't not need any
+ * default parameter. Because of that this type is empty.
+ * But it must be declared because of definition of
+ * timer_list_engine::defaults_type.
+ */
+struct timer_list_engine_defaults
 {
 };
 
 //
-// timer_list_engine_t
+// timer_list_engine
 //
-//FIXME: document this!
+/*!
+ * \brief An engine for timer list mechanism.
+ *
+ * This engine uses double-linked list of timers as timer mechanism.
+ * This list is ordered. The head of the list is the timer with the
+ * minimum time point.
+ *
+ * When used with timer thread then the thread sleeps until the first timer in
+ * the list elapsed. Then thread build sublist of elapsed timers and process
+ * them. Single-shot timers are removed after processing. Periodic timers
+ * rescheduled (inserted into appropriate places in the list).
+ *
+ * \note After building sublist of elapsed timers thread
+ * unblocks object mutex and calls timer actors for timers from the sublist.
+ * And locks object back right after processing. It means
+ * that actors call call timer thread object. And there won't be frequent
+ * mutex locking/unlocking operations for building and processing
+ * sublist of elapsed timers. This allows to process millions of timer actor
+ * per second.
+ *
+ * \attention This type of timer thread is good for situations
+ * where there are many timers with equal pauses and repetition periods.
+ * In that cases almost all timers will be added to the end of the
+ * list. But if there are many timers with very different pauses then
+ * operation of activating and rescheduling of timers will be too
+ * expensive. Timer thread based on timer_wheel or timer_heap is
+ * more appropriate for that scenario.
+ *
+ * \tparam THREAD_SAFETY Thread-safety indicator.
+ * Must be timertt::thread_safety::unsafe or timertt::thread_safety::safe.
+ *
+ * \tparam ERROR_LOGGER type of logger for errors detected during
+ * timer thread execution. Interface for error logger is defined
+ * by default_error_logger class.
+ *
+ * \tparam ACTOR_EXCEPTION_HANDLER type of handler for dealing with
+ * exceptions thrown from timer actors. Interface for exception handler
+ * is defined by default_actor_exception_handler.
+ */
 template<
 	typename THREAD_SAFETY,
 	typename ERROR_LOGGER,
 	typename ACTOR_EXCEPTION_HANDLER >
-class timer_list_engine_t
+class timer_list_engine
 	:	public engine_common<
 			THREAD_SAFETY, ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >
 {
@@ -1081,17 +1128,17 @@ class timer_list_engine_t
 
 public :
 	//! Type with default parameters for this engine.
-	typedef timer_list_engine_defaults_t defaults_type;
+	typedef timer_list_engine_defaults defaults_type;
 
 	//! Default constructor.
-	timer_list_engine_t()
-		:	timer_list_engine_t(
+	timer_list_engine()
+		:	timer_list_engine(
 				ERROR_LOGGER(),
 				ACTOR_EXCEPTION_HANDLER() )
 	{}
 
 	//! Constructor with all parameters.
-	timer_list_engine_t(
+	timer_list_engine(
 		//! An error logger for timer thread.
 		ERROR_LOGGER error_logger,
 		//! An actor exception handler for timer thread.
@@ -1100,7 +1147,7 @@ public :
 	{
 	}
 
-	~timer_list_engine_t()
+	~timer_list_engine()
 	{
 		clear_all();
 	}
@@ -1109,7 +1156,7 @@ public :
 	timer_object_holder< THREAD_SAFETY >
 	allocate()
 	{
-		return timer_object_holder< THREAD_SAFETY >( new list_timer_t() );
+		return timer_object_holder< THREAD_SAFETY >( new timer_type() );
 	}
 
 	//! Activate timer and schedule it for execution.
@@ -1137,7 +1184,7 @@ public :
 		//! Action for the timer.
 		timer_action action )
 	{
-		auto list_timer = timer.template cast_to< list_timer_t >();
+		auto list_timer = timer.template cast_to< timer_type >();
 		ensure_timer_deactivated( list_timer );
 
 		// Timer object must be correctly (re)initialized.
@@ -1152,6 +1199,7 @@ public :
 		list_timer->m_status = timer_status::active;
 
 		insert_timer_to_list( list_timer );
+
 		return list_timer == m_head;
 	}
 
@@ -1161,7 +1209,7 @@ public :
 		//! Timer to be deactivated.
 		timer_object_holder< THREAD_SAFETY > timer )
 	{
-		auto list_timer = timer.template cast_to< list_timer_t >();
+		auto list_timer = timer.template cast_to< timer_type >();
 		if( timer_status::active == list_timer->m_status )
 		{
 			// This is normal active timer. It can be safely
@@ -1194,7 +1242,7 @@ public :
 		//! Object's lock.
 		UNIQUE_LOCK & lock )
 	{
-		list_timer_t * exec_list_head = make_exec_list();
+		timer_type * exec_list_head = make_exec_list();
 
 		if( exec_list_head )
 		{
@@ -1246,7 +1294,7 @@ public :
 
 private :
 	//! Type of list timer.
-	struct list_timer_t : public timer_object< THREAD_SAFETY >
+	struct timer_type : public timer_object< THREAD_SAFETY >
 	{
 		//! Status of the timer.
 		typename threading_traits< THREAD_SAFETY >::status_holder_type m_status;
@@ -1264,11 +1312,11 @@ private :
 		timer_action m_action;
 
 		//! Previous demand in the list.
-		list_timer_t * m_prev = nullptr;
+		timer_type * m_prev = nullptr;
 		//! Next demand in the list.
-		list_timer_t * m_next = nullptr;
+		timer_type * m_next = nullptr;
 
-		list_timer_t()
+		timer_type()
 		{
 			m_status = timer_status::deactivated;
 		}
@@ -1279,10 +1327,10 @@ private :
 	 * \{
 	 */
 	//! Head of the list of timers.
-	list_timer_t * m_head = nullptr;
+	timer_type * m_head = nullptr;
 
 	//! Tail of the list of timers.
-	list_timer_t * m_tail = nullptr;
+	timer_type * m_tail = nullptr;
 	/*!
 	 * \}
 	 */
@@ -1293,7 +1341,7 @@ private :
 	 * \throw std::runtimer_error if timer is not deactivated.
 	 */
 	static void
-	ensure_timer_deactivated( const list_timer_t * timer )
+	ensure_timer_deactivated( const timer_type * timer )
 	{
 		if( timer_status::deactivated != timer->m_status )
 			throw std::runtime_error( "timer is not in 'deactivated' state" );
@@ -1302,7 +1350,7 @@ private :
 	//! Insert timer to the list.
 	/*!
 	 * Insertion starts from the tail of the list. And if \a timer
-	 * has lower list_timer_t::m_whan value then the last list item
+	 * has lower timer_type::m_whan value then the last list item
 	 * there is an loop of searching appropriate place by going to
 	 * the head of the list.
 	 *
@@ -1311,9 +1359,9 @@ private :
 	void
 	insert_timer_to_list(
 		//! Timer to be inserted.
-		list_timer_t * timer )
+		timer_type * timer )
 	{
-		list_timer_t * point = m_tail;
+		timer_type * point = m_tail;
 		while( point )
 		{
 			if( point->m_when > timer->m_when )
@@ -1356,7 +1404,7 @@ private :
 	 */
 	void
 	remove_timer_from_list(
-		list_timer_t * timer )
+		timer_type * timer )
 	{
 		if( timer->m_prev )
 			timer->m_prev->m_next = timer->m_next;
@@ -1375,7 +1423,7 @@ private :
 	 * All timers in the sublist receive timer_status::wait_for_execution
 	 * status.
 	 */
-	list_timer_t *
+	timer_type *
 	make_exec_list()
 	{
 		// If there is no timer return empty list immidiately.
@@ -1428,7 +1476,7 @@ private :
 		UNIQUE_LOCK & lock,
 		//! Head of execution list.
 		//! Cannot be nullptr.
-		list_timer_t * head )
+		timer_type * head )
 	{
 		lock.unlock();
 
@@ -1472,7 +1520,7 @@ private :
 	utilize_exec_list(
 		//! Head of execution list.
 		//! Cannot be null.
-		list_timer_t * head )
+		timer_type * head )
 	{
 		while( head )
 		{
@@ -1499,10 +1547,14 @@ private :
 };
 
 //
-// timer_heap_engine_defaults_t
+// timer_heap_engine_defaults
 //
-//FIXME: document this!
-struct timer_heap_engine_defaults_t
+/*!
+ * \since v.1.1.0
+ * \brief Container for static method with default values for
+ * timer_heap engine.
+ */
+struct timer_heap_engine_defaults
 {
 	//! Default initial capacity of heap-array.
 	inline static std::size_t
@@ -1510,19 +1562,47 @@ struct timer_heap_engine_defaults_t
 };
 
 //
-// timer_heap_engine_t
+// timer_heap_engine
 //
 
-//FIXME: document this!
 /*!
- * \since v.1.1.0
- * \brief A timer heap timer engine.
+ * \brief An engine for timer heap mechanism.
+ *
+ * This timer engine uses timer mechanism based on
+ * <a href="http://en.wikipedia.org/wiki/Heap_%28data_structure%29">heap data structure</a>.
+ * The timer with the earlier time point is on the top of
+ * the heap. When this timer elapsed and removed next timer with the
+ * eralier time point is going to the top of the heap.
+ *
+ * This implementation uses array-based <a
+ * href="http://en.wikipedia.org/wiki/Binary_heap">binary heap</a>. The array
+ * is growing as necessary to hold all the timers. The initial size of that
+ * array can be specified in the constructor.
+ *
+ * \note Unlike timer_wheel and timer_list threads this thread unlock and
+ * lock its mutex for processing every timers. It means that processing
+ * speed of this thread will be slower then for timer_wheel or
+ * timer_list threads. But this type of thread doesn't consume resources
+ * when there is no timers (unlike timer_wheel thread). And has very
+ * efficient activation and deactivation procedures (unlike timer_list
+ * thread).
+ *
+ * \tparam THREAD_SAFETY Thread-safety indicator.
+ * Must be timertt::thread_safety::unsafe or timertt::thread_safety::safe.
+ *
+ * \tparam ERROR_LOGGER type of logger for errors detected during
+ * timer thread execution. Interface for error logger is defined
+ * by default_error_logger class.
+ *
+ * \tparam ACTOR_EXCEPTION_HANDLER type of handler for dealing with
+ * exceptions thrown from timer actors. Interface for exception handler
+ * is defined by default_actor_exception_handler.
  */
 template<
 	typename THREAD_SAFETY,
 	typename ERROR_LOGGER,
 	typename ACTOR_EXCEPTION_HANDLER >
-class timer_heap_engine_t
+class timer_heap_engine
 	:	public engine_common<
 			THREAD_SAFETY, ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >
 {
@@ -1532,10 +1612,10 @@ class timer_heap_engine_t
 
 public :
 	//! Type with default parameters for this engine.
-	typedef timer_heap_engine_defaults_t defaults_type;
+	typedef timer_heap_engine_defaults defaults_type;
 
 	//! Constructor with all parameters.
-	timer_heap_engine_t(
+	timer_heap_engine(
 		//! An initial size for heap array.
 		std::size_t initial_heap_capacity,
 		//! An error logger for timer thread.
@@ -1547,7 +1627,7 @@ public :
 		m_heap.reserve( initial_heap_capacity );
 	}
 
-	~timer_heap_engine_t()
+	~timer_heap_engine()
 	{
 		clear_all();
 	}
@@ -1556,11 +1636,14 @@ public :
 	timer_object_holder< THREAD_SAFETY >
 	allocate()
 	{
-		return timer_object_holder< THREAD_SAFETY >( new heap_timer_t() );
+		return timer_object_holder< THREAD_SAFETY >( new timer_type() );
 	}
 
 	//! Activate timer and schedule it for execution.
 	/*!
+	 * \return true is new timer is a timer on the top of the heap
+	 * (has earlier expiration time).
+	 *
 	 * \throw std::exception If timer thread is not started.
 	 * \throw std::exception If \a timer is already activated.
 	 *
@@ -1581,7 +1664,7 @@ public :
 		//! Action for the timer.
 		timer_action action )
 	{
-		auto heap_timer = timer.template cast_to< heap_timer_t >();
+		auto heap_timer = timer.template cast_to< timer_type >();
 		ensure_timer_deactivated( heap_timer );
 
 		// Timer object must be correctly (re)initialized.
@@ -1605,7 +1688,7 @@ public :
 		//! Timer to be deactivated.
 		timer_object_holder< THREAD_SAFETY > timer )
 	{
-		auto heap_timer = timer.template cast_to< heap_timer_t >();
+		auto heap_timer = timer.template cast_to< timer_type >();
 		if( !heap_timer->deactivated() )
 		{
 			// If this timer is not in processing now it can
@@ -1631,7 +1714,15 @@ public :
 		}
 	}
 
-//FIXME: document this!
+	/*!
+	 * \brief Process all expired timers from the heap.
+	 *
+	 * \note time_point for timers expiration detection is got
+	 * only once at the begining on the method.
+	 *
+	 * \note \a lock unlocked and then locked back for every
+	 * timer action execution.
+	 */
 	template< typename UNIQUE_LOCK >
 	void
 	process_expired_timers(
@@ -1639,7 +1730,7 @@ public :
 		UNIQUE_LOCK & lock )
 	{
 		// Process timers in loop until there are elapsed timers.
-		auto now = monotonic_clock::now();
+		const auto now = monotonic_clock::now();
 		while( !heap_empty() && now > heap_head()->m_when )
 		{
 			m_timer_in_processing = heap_head();
@@ -1705,7 +1796,7 @@ public :
 
 private :
 	//! Type of heap timer.
-	struct heap_timer_t : public timer_object< THREAD_SAFETY >
+	struct timer_type : public timer_object< THREAD_SAFETY >
 	{
 		//! A special value which means that timer is deactivated.
 		/*!
@@ -1756,10 +1847,10 @@ private :
 	 * \{
 	 */
 	//! Array for holding heap data structure.
-	std::vector< heap_timer_t * > m_heap;
+	std::vector< timer_type * > m_heap;
 
 	//! Timer which is currently in processing.
-	heap_timer_t * m_timer_in_processing = nullptr;
+	timer_type * m_timer_in_processing = nullptr;
 	/*!
 	 * \}
 	 */
@@ -1770,7 +1861,7 @@ private :
 	 * \throw std::runtimer_error if timer is not deactivated.
 	 */
 	static void
-	ensure_timer_deactivated( const heap_timer_t * timer )
+	ensure_timer_deactivated( const timer_type * timer )
 	{
 		if( !timer->deactivated() )
 			throw std::runtime_error( "timer is not in 'deactivated' state" );
@@ -1822,7 +1913,7 @@ private :
 	/*!
 	 * \attention This method must be called only on non-empty heap.
 	 */
-	heap_timer_t *
+	timer_type *
 	heap_head() const
 	{
 		return m_heap.front();
@@ -1830,7 +1921,7 @@ private :
 
 	//! Add new timer to the heap data structure.
 	void
-	heap_add( heap_timer_t * timer )
+	heap_add( timer_type * timer )
 	{
 		timer->m_position = m_heap.size() + 1;
 		m_heap.push_back( timer );
@@ -1851,7 +1942,7 @@ private :
 
 	//! Remove timer from the heap data structure.
 	void
-	heap_remove( heap_timer_t * timer )
+	heap_remove( timer_type * timer )
 	{
 		if( timer->m_position == m_heap.size() )
 			// A special case: timer to remove is a last added item
@@ -1892,7 +1983,7 @@ private :
 
 	//! Swap two heap nodes.
 	void
-	heap_swap( heap_timer_t * a, heap_timer_t * b )
+	heap_swap( timer_type * a, timer_type * b )
 	{
 		m_heap[ a->m_position - 1 ] = b;
 		m_heap[ b->m_position - 1 ] = a;
@@ -1904,7 +1995,7 @@ private :
 	/*!
 	 * This accessor work with respect that positions are started from 1.
 	 */
-	heap_timer_t *
+	timer_type *
 	heap_item( std::size_t position ) const
 	{
 		return m_heap[ position - 1 ];
@@ -2582,14 +2673,14 @@ template<
 class timer_list_thread_template_t
 	: public
 		details::thread_impl_template_t<
-				details::timer_list_engine_t<
+				details::timer_list_engine<
 						thread_safety::safe,
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
 	using base_type =
 			details::thread_impl_template_t<
-					details::timer_list_engine_t<
+					details::timer_list_engine<
 							thread_safety::safe,
 							ERROR_LOGGER,
 							ACTOR_EXCEPTION_HANDLER > >;
@@ -2628,14 +2719,14 @@ template<
 class timer_list_manager_template_t
 	: public
 		details::manager_impl_template<
-				details::timer_list_engine_t<
+				details::timer_list_engine<
 						THREAD_SAFETY,
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
 	using base_type =
 			details::manager_impl_template<
-					details::timer_list_engine_t<
+					details::timer_list_engine<
 							THREAD_SAFETY,
 							ERROR_LOGGER,
 							ACTOR_EXCEPTION_HANDLER > >;
@@ -2694,14 +2785,14 @@ template<
 class timer_heap_thread_template_t
 	: public
 		details::thread_impl_template_t<
-				details::timer_heap_engine_t<
+				details::timer_heap_engine<
 						thread_safety::safe,
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
 	using base_type =
 			details::thread_impl_template_t<
-					details::timer_heap_engine_t<
+					details::timer_heap_engine<
 							thread_safety::safe,
 							ERROR_LOGGER,
 							ACTOR_EXCEPTION_HANDLER > >;
@@ -2764,14 +2855,14 @@ template<
 class timer_heap_manager_template_t
 	: public
 		details::manager_impl_template<
-				details::timer_heap_engine_t<
+				details::timer_heap_engine<
 						THREAD_SAFETY,
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
 	using base_type =
 		details::manager_impl_template<
-				details::timer_heap_engine_t<
+				details::timer_heap_engine<
 						THREAD_SAFETY,
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > >;
