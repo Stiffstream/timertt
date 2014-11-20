@@ -391,6 +391,21 @@ protected :
 };
 
 //
+// timer_wheel_engine_defaults_t
+//
+//FIXME: document this!
+struct timer_wheel_engine_defaults_t
+{
+	//! Default wheel size.
+	inline static unsigned int
+	default_wheel_size() { return 1000; }
+
+	//! Default tick duration.
+	inline static monotonic_clock_t::duration
+	default_granularity() { return std::chrono::milliseconds( 10 ); }
+};
+
+//
 // timer_wheel_engine_t
 //
 
@@ -408,13 +423,8 @@ class timer_wheel_engine_t
 			THREADING, ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >;
 
 public :
-	//! Default wheel size.
-	static unsigned int
-	default_wheel_size() { return 1000; }
-
-	//! Default tick duration.
-	static monotonic_clock_t::duration
-	default_granularity() { return std::chrono::milliseconds( 10 ); }
+	//! Type with default parameters for this engine.
+	typedef timer_wheel_engine_defaults_t defaults_t;
 
 	//! Constructor with all parameters.
 	timer_wheel_engine_t(
@@ -453,12 +463,11 @@ public :
 	 * \throw std::exception If timer thread is not started.
 	 * \throw std::exception If \a timer is already activated.
 	 *
-	 *
 	 * \tparam DURATION_1 actual type which represents time duration.
 	 * \tparam DURATION_2 actual type which represents time duration.
 	 */
 	template< class DURATION_1, class DURATION_2 >
-	void
+	bool
 	activate(
 		//! Timer to be activated.
 		timer_object_holder_t< THREADING > timer,
@@ -493,6 +502,8 @@ public :
 			wheel_timer->m_period = 0;
 
 		insert_demand_to_wheel( wheel_timer );
+
+		return false;
 	}
 
 	//! Deactivate timer and remove it from the wheel.
@@ -947,6 +958,14 @@ private :
 };
 
 //
+// timer_list_engine_defaults_t
+//
+//FIXME: document this!
+struct timer_list_engine_defaults_t
+{
+};
+
+//
 // timer_list_engine_t
 //
 //FIXME: document this!
@@ -963,6 +982,9 @@ class timer_list_engine_t
 			THREADING, ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >;
 
 public :
+	//! Type with default parameters for this engine.
+	typedef timer_list_engine_defaults_t defaults_t;
+
 	//! Default constructor.
 	timer_list_engine_t()
 		:	timer_list_engine_t(
@@ -1379,6 +1401,17 @@ private :
 };
 
 //
+// timer_heap_engine_defaults_t
+//
+//FIXME: document this!
+struct timer_heap_engine_defaults_t
+{
+	//! Default initial capacity of heap-array.
+	inline static std::size_t
+	default_initial_heap_capacity() { return 64; }
+};
+
+//
 // timer_heap_engine_t
 //
 
@@ -1400,34 +1433,8 @@ class timer_heap_engine_t
 			THREADING, ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >;
 
 public :
-	//! Default initial capacity of heap-array.
-	inline static
-	std::size_t default_initial_heap_capacity()
-	{
-		return 64;
-	}
-
-	//! Default constructor.
-	/*!
-	 * Value default_initial_heap_capacity() is used as initial
-	 * heap array size.
-	 */
-	timer_heap_engine_t()
-		:	timer_heap_engine_t(
-				default_initial_heap_capacity(),
-				ERROR_LOGGER(),
-				ACTOR_EXCEPTION_HANDLER() )
-	{}
-
-	//! Constructor to specify initial capacity of heap-array.
-	timer_heap_engine_t(
-		//! An initial size for heap array.
-		std::size_t initial_heap_capacity )
-		:	timer_heap_engine_t(
-				initial_heap_capacity,
-				ERROR_LOGGER(),
-				ACTOR_EXCEPTION_HANDLER() )
-	{}
+	//! Type with default parameters for this engine.
+	typedef timer_heap_engine_defaults_t defaults_t;
 
 	//! Constructor with all parameters.
 	timer_heap_engine_t(
@@ -1825,6 +1832,9 @@ struct timer_manager_threading_dependent_part_t
 		void lock() {}
 		void unlock() {}
 	};
+
+	void
+	notify() {}
 };
 
 //FIXME: document this!
@@ -1845,32 +1855,46 @@ struct timer_manager_threading_dependent_part_t< threading::multi >
 		void lock() { m_lock.lock(); }
 		void unlock() { m_lock.unlock(); }
 	};
+
+	void
+	notify() {}
+};
+
+//FIXME: document this!
+template< threading THREADING >
+struct timer_thread_basic_part_t
+	:	public timer_manager_threading_dependent_part_t< THREADING >
+{
+	std::condition_variable m_condition;
+
+	void
+	notify()
+	{
+		m_condition.notify_one();
+	}
 };
 
 //
-// timer_manager_impl_template_t
+// basic_methods_impl_mixin_t
 //
 
 //FIXME: document this!
-template< typename ENGINE >
-class timer_manager_impl_template_t
-	:	protected timer_manager_threading_dependent_part_t< ENGINE::threading > 
+template<
+	typename ENGINE,
+	template< threading > class MIXIN >
+class basic_methods_impl_mixin_t
+	:	protected MIXIN< ENGINE::threading > 
+	,	public ENGINE::defaults_t
 {
+	using mixin_t = MIXIN< ENGINE::threading >;
+
 public :
 	//! Constructor with all parameters.
 	template< typename... ARGS >
-	timer_manager_impl_template_t(
+	basic_methods_impl_mixin_t(
 		ARGS && ... args )
 		:	m_engine( std::forward< ARGS >(args)... )
 	{
-	}
-
-//FIXME: document this!
-	void
-	reset()
-	{
-		typename timer_manager_impl_template_t::lock_guard_t locker{ *this };
-		m_engine.clear_all();
 	}
 
 //FIXME: document this!
@@ -1944,10 +1968,11 @@ public :
 		//! Action for the timer.
 		timer_action_t action )
 	{
-		typename timer_manager_impl_template_t::lock_guard_t locker{ *this };
+		typename mixin_t::lock_guard_t locker{ *this };
 
-		m_engine.activate( std::move( timer ), pause, period,
-				std::move( action ) );
+		if( m_engine.activate(
+				std::move( timer ), pause, period, std::move( action ) ) )
+			this->notify();
 	}
 
 	//! Activate timer and schedule it for execution.
@@ -1981,9 +2006,51 @@ public :
 		//! Timer to be deactivated.
 		timer_object_holder_t< ENGINE::threading > timer )
 	{
-		typename timer_manager_impl_template_t::lock_guard_t locker{ *this };
+		typename mixin_t::lock_guard_t locker{ *this };
 
 		m_engine.deactivate( timer );
+	}
+
+protected :
+//FIXME: document this!
+	ENGINE m_engine;
+};
+
+//
+// timer_manager_impl_template_t
+//
+
+//FIXME: document this!
+template< typename ENGINE >
+class timer_manager_impl_template_t
+	:	public
+			basic_methods_impl_mixin_t<
+				ENGINE,
+				timer_manager_threading_dependent_part_t > 
+{
+#if defined( _MSC_VER ) && ( _MSC_VER <= 1800 )
+	using base_type_t = basic_methods_impl_mixin_t;
+#else
+	using base_type_t = basic_methods_impl_mixin_t<
+			ENGINE,
+			timer_manager_threading_dependent_part_t >;
+#endif
+
+public :
+	//! Constructor with all parameters.
+	template< typename... ARGS >
+	timer_manager_impl_template_t(
+		ARGS && ... args )
+		:	base_type_t( std::forward< ARGS >(args)... )
+	{
+	}
+
+//FIXME: document this!
+	void
+	reset()
+	{
+		typename timer_manager_impl_template_t::lock_guard_t locker{ *this };
+		this->m_engine.clear_all();
 	}
 
 //FIXME: document this!
@@ -1992,12 +2059,8 @@ public :
 	{
 		typename timer_manager_impl_template_t::lock_guard_t locker{ *this };
 
-		m_engine.process_expired_timers( locker );
+		this->m_engine.process_expired_timers( locker );
 	}
-
-private :
-//FIXME: document this!
-	ENGINE m_engine;
 };
 
 //
@@ -2837,7 +2900,8 @@ template<
 	threading THREADING,
 	typename ERROR_LOGGER,
 	typename ACTOR_EXCEPTION_HANDLER >
-class timer_wheel_manager_template_t : public
+class timer_wheel_manager_template_t
+	: public
 		details::timer_manager_impl_template_t<
 				details::timer_wheel_engine_t<
 						THREADING,
@@ -2853,21 +2917,11 @@ class timer_wheel_manager_template_t : public
 			base_type_t;
 
 public :
-//FIXME: this method must be inherited from somewhere!
-	//! Default wheel size.
-	static unsigned int
-	default_wheel_size() { return 1000; }
-
-//FIXME: this method must be inherited from somewhere!
-	//! Default tick duration.
-	static monotonic_clock_t::duration
-	default_granularity() { return std::chrono::milliseconds( 10 ); }
-
 	//! Default constructor.
 	timer_wheel_manager_template_t()
 		:	timer_wheel_manager_template_t(
-				default_wheel_size(),
-				default_granularity(),
+				base_type_t::default_wheel_size(),
+				base_type_t::default_granularity(),
 				ERROR_LOGGER(),
 				ACTOR_EXCEPTION_HANDLER() )
 	{}
@@ -3203,11 +3257,9 @@ public :
 
 	//! Constructor with all parameters.
 	timer_list_manager_template_t(
-		ERROR_LOGGER && error_logger,
-		ACTOR_EXCEPTION_HANDLER && actor_exception_handler )
-		:	base_type_t(
-				std::forward< ERROR_LOGGER >( error_logger ),
-				std::forward< ACTOR_EXCEPTION_HANDLER >( actor_exception_handler ) )
+		ERROR_LOGGER error_logger,
+		ACTOR_EXCEPTION_HANDLER actor_exception_handler )
+		:	base_type_t( error_logger, actor_exception_handler )
 	{
 	}
 };
@@ -3804,27 +3856,23 @@ class timer_heap_manager_template_t
 			base_type_t;
 
 public :
-//FIXME: this method must be inherited from base_type_t by some way.
-	//! Default initial capacity of heap-array.
-	inline static
-	std::size_t default_initial_heap_capacity()
-	{
-		return engine_t::default_initial_heap_capacity();
-	}
-
 	//! Default constructor.
 	/*!
 	 * Value default_initial_heap_capacity() is used as initial
 	 * heap array size.
 	 */
 	timer_heap_manager_template_t()
+		:	timer_heap_manager_template_t(
+				base_type_t::default_initial_heap_capacity(),
+				ERROR_LOGGER(),
+				ACTOR_EXCEPTION_HANDLER() )
 	{}
 
 	//! Constructor to specify initial capacity of heap-array.
 	timer_heap_manager_template_t(
 		//! An initial size for heap array.
 		std::size_t initial_heap_capacity )
-		:	base_type_t(
+		:	timer_heap_manager_template_t(
 				initial_heap_capacity,
 				ERROR_LOGGER(),
 				ACTOR_EXCEPTION_HANDLER() )
