@@ -121,7 +121,7 @@ struct threading_traits< thread_safety::safe >
 };
 
 //
-// timer_object_t
+// timer_object
 //
 
 /*!
@@ -131,23 +131,23 @@ struct threading_traits< thread_safety::safe >
  * or thread_safety::safe type.
  */
 template< typename THREAD_SAFETY >
-struct timer_object_t
+struct timer_object
 {
 	//! Reference counter for the demand.
 	typename threading_traits< THREAD_SAFETY >::reference_counter_t m_references;
 
 	//! Deafault constructor.
-	inline timer_object_t()
+	inline timer_object()
 	{
 		m_references = 0;
 	}
 
-	inline virtual ~timer_object_t()
+	inline virtual ~timer_object()
 	{}
 
 	//! Increment reference counter for the demand.
 	static inline void
-	increment_references( timer_object_t * t )
+	increment_references( timer_object * t )
 	{
 		++(t->m_references);
 	}
@@ -155,7 +155,7 @@ struct timer_object_t
 	//! Decrement reference counter for the demand and destroy
 	//! demand if there is no more references.
 	static inline void
-	decrement_references( timer_object_t * t )
+	decrement_references( timer_object * t )
 	{
 		if( 0 == --(t->m_references) )
 			delete t;
@@ -170,10 +170,10 @@ struct timer_object_t
  *
  * \note For compatibility with version 1.0.
  */
-typedef timer_object_t< thread_safety::safe > timer_t;
+typedef timer_object< thread_safety::safe > timer_t;
 
 //
-// timer_object_holder_t
+// timer_object_holder
 //
 /*!
  * \brief An intrusive smart pointer to timer demand.
@@ -182,62 +182,62 @@ typedef timer_object_t< thread_safety::safe > timer_t;
  * or thread_safety::safe type.
  */
 template< typename THREAD_SAFETY >
-class timer_object_holder_t
+class timer_object_holder
 {
 public :
 	//! Default constructor.
 	/*!
 	 * Constructs a null pointer.
 	 */
-	inline timer_object_holder_t()
+	inline timer_object_holder()
 		:	m_timer( nullptr )
 	{}
 	//! Constructor for a raw pointer.
-	inline timer_object_holder_t( timer_object_t< THREAD_SAFETY > * t )
+	inline timer_object_holder( timer_object< THREAD_SAFETY > * t )
 		:	m_timer( t )
 	{
 		take_object();
 	}
 	//! Copy constructor.
-	inline timer_object_holder_t( const timer_object_holder_t & o )
+	inline timer_object_holder( const timer_object_holder & o )
 		:	m_timer( o.m_timer )
 	{
 		take_object();
 	}
 	//! Move constructor.
-	inline timer_object_holder_t( timer_object_holder_t && o )
+	inline timer_object_holder( timer_object_holder && o )
 		:	m_timer( o.m_timer )
 	{
 		o.m_timer = nullptr;
 	}
 
 	//! Destructor.
-	inline ~timer_object_holder_t()
+	inline ~timer_object_holder()
 	{
 		dismiss_object();
 	}
 
 	//! Copy operator.
-	inline timer_object_holder_t &
-	operator=( const timer_object_holder_t & o )
+	inline timer_object_holder &
+	operator=( const timer_object_holder & o )
 	{
-		timer_object_holder_t t( o );
+		timer_object_holder t( o );
 		swap( t );
 		return *this;
 	}
 
 	//! Move operator.
-	inline timer_object_holder_t &
-	operator=( timer_object_holder_t && o )
+	inline timer_object_holder &
+	operator=( timer_object_holder && o )
 	{
-		timer_object_holder_t t( std::move( o ) );
+		timer_object_holder t( std::move( o ) );
 		swap( t );
 		return *this;
 	}
 
 	//! Swap values.
 	inline void
-	swap( timer_object_holder_t & o )
+	swap( timer_object_holder & o )
 	{
 		auto t = m_timer;
 		m_timer = o.m_timer;
@@ -269,7 +269,7 @@ public :
 	 * \name Access to object.
 	 * \{
 	 */
-	inline timer_object_t< THREAD_SAFETY > *
+	inline timer_object< THREAD_SAFETY > *
 	get() const
 	{
 		return m_timer;
@@ -290,14 +290,14 @@ public :
 
 private :
 	//! Timer controlled by a smart pointer.
-	timer_object_t< THREAD_SAFETY > * m_timer;
+	timer_object< THREAD_SAFETY > * m_timer;
 
 	//! Increment reference count to object if it's not null.
 	inline void
 	take_object()
 	{
 		if( m_timer )
-			timer_object_t< THREAD_SAFETY >::increment_references( m_timer );
+			timer_object< THREAD_SAFETY >::increment_references( m_timer );
 	}
 
 	//! Decrement reference count to object and delete it if needed.
@@ -306,7 +306,7 @@ private :
 	{
 		if( m_timer )
 		{
-			timer_object_t< THREAD_SAFETY >::decrement_references( m_timer );
+			timer_object< THREAD_SAFETY >::decrement_references( m_timer );
 			m_timer = nullptr;
 		}
 	}
@@ -320,7 +320,7 @@ private :
  *
  * \note For compatibility with version 1.0.
  */
-typedef timer_object_holder_t< thread_safety::safe > timer_holder_t;
+typedef timer_object_holder< thread_safety::safe > timer_holder_t;
 
 //
 // default_error_logger
@@ -448,7 +448,7 @@ class timer_wheel_engine_t
 			THREAD_SAFETY, ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >
 {
 	//! An alias for base class.
-	using base_type_t = timer_engine_common_t<
+	using base_type = timer_engine_common_t<
 			THREAD_SAFETY, ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >;
 
 public :
@@ -465,7 +465,7 @@ public :
 		ERROR_LOGGER error_logger,
 		//! An actor exception handler for timer thread.
 		ACTOR_EXCEPTION_HANDLER exception_handler )
-		:	base_type_t( error_logger, exception_handler )
+		:	base_type( error_logger, exception_handler )
 		,	m_wheel_size( wheel_size )
 		,	m_granularity( granularity )
 	{
@@ -481,10 +481,10 @@ public :
 	}
 
 	//! Create timer to be activated later.
-	timer_object_holder_t< THREAD_SAFETY >
+	timer_object_holder< THREAD_SAFETY >
 	allocate()
 	{
-		return timer_object_holder_t< THREAD_SAFETY >( new wheel_timer_t() );
+		return timer_object_holder< THREAD_SAFETY >( new wheel_timer_t() );
 	}
 
 	//! Activate timer and schedule it for execution.
@@ -499,7 +499,7 @@ public :
 	bool
 	activate(
 		//! Timer to be activated.
-		timer_object_holder_t< THREAD_SAFETY > timer,
+		timer_object_holder< THREAD_SAFETY > timer,
 		//! Pause for timer execution.
 		DURATION_1 pause,
 		//! Repetition period.
@@ -515,7 +515,7 @@ public :
 		wheel_timer->m_action = std::move(action);
 
 		// Timer must be taken under control.
-		timer_object_t< THREAD_SAFETY >::increment_references( wheel_timer );
+		timer_object< THREAD_SAFETY >::increment_references( wheel_timer );
 		// It is an active timer now.
 		wheel_timer->m_status = timer_status_t::active;
 
@@ -537,7 +537,7 @@ public :
 
 	//! Deactivate timer and remove it from the wheel.
 	void
-	deactivate( timer_object_holder_t< THREAD_SAFETY > timer )
+	deactivate( timer_object_holder< THREAD_SAFETY > timer )
 	{
 		auto wheel_timer = timer.template cast_to< wheel_timer_t >();
 		if( timer_status_t::active == wheel_timer->m_status )
@@ -549,7 +549,7 @@ public :
 			wheel_timer->m_status = timer_status_t::deactivated;
 
 			// Release timer object.
-			timer_object_t< THREAD_SAFETY >::decrement_references( wheel_timer );
+			timer_object< THREAD_SAFETY >::decrement_references( wheel_timer );
 		}
 		else if( timer_status_t::wait_for_execution == wheel_timer->m_status )
 		{
@@ -647,7 +647,7 @@ public :
 				timer = timer->m_next;
 
 				t->m_status = timer_status_t::deactivated;
-				timer_object_t< THREAD_SAFETY >::decrement_references( t );
+				timer_object< THREAD_SAFETY >::decrement_references( t );
 			}
 		}
 
@@ -658,7 +658,7 @@ public :
 
 private :
 	//! Type of wheel timer.
-	struct wheel_timer_t : public timer_object_t< THREAD_SAFETY >
+	struct wheel_timer_t : public timer_object< THREAD_SAFETY >
 	{
 		//! Status of the timer.
 		typename threading_traits< THREAD_SAFETY >::status_holder_t m_status;
@@ -980,7 +980,7 @@ private :
 			{
 				// Timer must be utilized.
 				t->m_status = timer_status_t::deactivated;
-				timer_object_t< THREAD_SAFETY >::decrement_references( t );
+				timer_object< THREAD_SAFETY >::decrement_references( t );
 			}
 		}
 	}
@@ -1007,7 +1007,7 @@ class timer_list_engine_t
 			THREAD_SAFETY, ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >
 {
 	//! An alias for base class.
-	using base_type_t = timer_engine_common_t<
+	using base_type = timer_engine_common_t<
 			THREAD_SAFETY, ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >;
 
 public :
@@ -1027,7 +1027,7 @@ public :
 		ERROR_LOGGER error_logger,
 		//! An actor exception handler for timer thread.
 		ACTOR_EXCEPTION_HANDLER exception_handler )
-		:	base_type_t( error_logger, exception_handler )
+		:	base_type( error_logger, exception_handler )
 	{
 	}
 
@@ -1037,10 +1037,10 @@ public :
 	}
 
 	//! Create timer to be activated later.
-	timer_object_holder_t< THREAD_SAFETY >
+	timer_object_holder< THREAD_SAFETY >
 	allocate()
 	{
-		return timer_object_holder_t< THREAD_SAFETY >( new list_timer_t() );
+		return timer_object_holder< THREAD_SAFETY >( new list_timer_t() );
 	}
 
 	//! Activate timer and schedule it for execution.
@@ -1058,7 +1058,7 @@ public :
 	bool
 	activate(
 		//! Timer to be activated.
-		timer_object_holder_t< THREAD_SAFETY > timer,
+		timer_object_holder< THREAD_SAFETY > timer,
 		//! Pause for timer execution.
 		DURATION_1 pause,
 		//! Repetition period.
@@ -1078,7 +1078,7 @@ public :
 				monotonic_clock_t::duration >( period );
 
 		// Timer must be taken under control.
-		timer_object_t< THREAD_SAFETY >::increment_references( list_timer );
+		timer_object< THREAD_SAFETY >::increment_references( list_timer );
 		// It is an active timer now.
 		list_timer->m_status = timer_status_t::active;
 
@@ -1090,7 +1090,7 @@ public :
 	void
 	deactivate(
 		//! Timer to be deactivated.
-		timer_object_holder_t< THREAD_SAFETY > timer )
+		timer_object_holder< THREAD_SAFETY > timer )
 	{
 		auto list_timer = timer.template cast_to< list_timer_t >();
 		if( timer_status_t::active == list_timer->m_status )
@@ -1102,7 +1102,7 @@ public :
 			list_timer->m_status = timer_status_t::deactivated;
 
 			// Release timer object.
-			timer_object_t< THREAD_SAFETY >::decrement_references( list_timer );
+			timer_object< THREAD_SAFETY >::decrement_references( list_timer );
 		}
 		else if( timer_status_t::wait_for_execution == list_timer->m_status )
 		{
@@ -1169,7 +1169,7 @@ public :
 			m_head = m_head->m_next;
 
 			t->m_status = timer_status_t::deactivated;
-			timer_object_t< THREAD_SAFETY >::decrement_references( t );
+			timer_object< THREAD_SAFETY >::decrement_references( t );
 		}
 
 		m_tail = nullptr;
@@ -1177,7 +1177,7 @@ public :
 
 private :
 	//! Type of list timer.
-	struct list_timer_t : public timer_object_t< THREAD_SAFETY >
+	struct list_timer_t : public timer_object< THREAD_SAFETY >
 	{
 		//! Status of the timer.
 		typename threading_traits< THREAD_SAFETY >::status_holder_t m_status;
@@ -1423,7 +1423,7 @@ private :
 			{
 				// Timer must be utilized.
 				t->m_status = timer_status_t::deactivated;
-				timer_object_t< THREAD_SAFETY >::decrement_references( t );
+				timer_object< THREAD_SAFETY >::decrement_references( t );
 			}
 		}
 	}
@@ -1458,7 +1458,7 @@ class timer_heap_engine_t
 			THREAD_SAFETY, ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >
 {
 	//! An alias for base class.
-	using base_type_t = timer_engine_common_t<
+	using base_type = timer_engine_common_t<
 			THREAD_SAFETY, ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >;
 
 public :
@@ -1473,7 +1473,7 @@ public :
 		ERROR_LOGGER error_logger,
 		//! An actor exception handler for timer thread.
 		ACTOR_EXCEPTION_HANDLER exception_handler )
-		:	base_type_t( error_logger, exception_handler )
+		:	base_type( error_logger, exception_handler )
 	{
 		m_heap.reserve( initial_heap_capacity );
 	}
@@ -1484,10 +1484,10 @@ public :
 	}
 
 	//! Create timer to be activated later.
-	timer_object_holder_t< THREAD_SAFETY >
+	timer_object_holder< THREAD_SAFETY >
 	allocate()
 	{
-		return timer_object_holder_t< THREAD_SAFETY >( new heap_timer_t() );
+		return timer_object_holder< THREAD_SAFETY >( new heap_timer_t() );
 	}
 
 	//! Activate timer and schedule it for execution.
@@ -1502,7 +1502,7 @@ public :
 	bool
 	activate(
 		//! Timer to be activated.
-		timer_object_holder_t< THREAD_SAFETY > timer,
+		timer_object_holder< THREAD_SAFETY > timer,
 		//! Pause for timer execution.
 		DURATION_1 pause,
 		//! Repetition period.
@@ -1522,7 +1522,7 @@ public :
 				monotonic_clock_t::duration >( period );
 
 		// Timer must be taken under control.
-		timer_object_t< THREAD_SAFETY >::increment_references( heap_timer );
+		timer_object< THREAD_SAFETY >::increment_references( heap_timer );
 
 		// Timer will be marked as active during insertion into
 		// heap structure.
@@ -1534,7 +1534,7 @@ public :
 	void
 	deactivate(
 		//! Timer to be deactivated.
-		timer_object_holder_t< THREAD_SAFETY > timer )
+		timer_object_holder< THREAD_SAFETY > timer )
 	{
 		auto heap_timer = timer.template cast_to< heap_timer_t >();
 		if( !heap_timer->deactivated() )
@@ -1550,7 +1550,7 @@ public :
 				heap_timer->deactivate();
 
 				// Release timer object.
-				timer_object_t< THREAD_SAFETY >::decrement_references( heap_timer );
+				timer_object< THREAD_SAFETY >::decrement_references( heap_timer );
 			}
 			else
 			{
@@ -1584,7 +1584,7 @@ public :
 					m_timer_in_processing->single_shot() )
 			{
 				m_timer_in_processing->deactivate();
-				timer_object_t< THREAD_SAFETY >::decrement_references(
+				timer_object< THREAD_SAFETY >::decrement_references(
 						m_timer_in_processing );
 			}
 			else
@@ -1628,7 +1628,7 @@ public :
 		for( auto t : m_heap )
 		{
 			t->deactivate();
-			timer_object_t< THREAD_SAFETY >::decrement_references( t );
+			timer_object< THREAD_SAFETY >::decrement_references( t );
 		}
 
 		m_heap.clear();
@@ -1636,7 +1636,7 @@ public :
 
 private :
 	//! Type of heap timer.
-	struct heap_timer_t : public timer_object_t< THREAD_SAFETY >
+	struct heap_timer_t : public timer_object< THREAD_SAFETY >
 	{
 		//! A special value which means that timer is deactivated.
 		/*!
@@ -1846,16 +1846,16 @@ private :
 };
 
 //
-// timer_manager_threading_dependent_part_t
+// thread_unsafe_manager_mixin
 //
 
 //FIXME: document this!
-struct single_threading_manager_mixin_t
+struct thread_unsafe_manager_mixin
 {
 	class lock_guard_t
 	{
 	public :
-		lock_guard_t( single_threading_manager_mixin_t & ) {}
+		lock_guard_t( thread_unsafe_manager_mixin & ) {}
 
 		void lock() {}
 		void unlock() {}
@@ -1868,8 +1868,11 @@ struct single_threading_manager_mixin_t
 	notify() {}
 };
 
+//
+// thread_safe_manager_mixin
+//
 //FIXME: document this!
-struct multi_threading_manager_mixin_t
+struct thread_safe_manager_mixin
 {
 	std::mutex m_lock;
 
@@ -1878,7 +1881,7 @@ struct multi_threading_manager_mixin_t
 		std::unique_lock< std::mutex > m_lock;
 
 	public :
-		lock_guard_t( multi_threading_manager_mixin_t & self )
+		lock_guard_t( thread_safe_manager_mixin & self )
 			: m_lock( self.m_lock )
 		{}
 
@@ -1893,8 +1896,12 @@ struct multi_threading_manager_mixin_t
 	notify() {}
 };
 
+//
+// thread_mixin
+//
+
 //FIXME: document this!
-struct thread_mixin_t
+struct thread_mixin
 {
 	std::mutex m_lock;
 	std::condition_variable m_condition;
@@ -1906,7 +1913,7 @@ struct thread_mixin_t
 		std::unique_lock< std::mutex > m_lock;
 
 	public :
-		lock_guard_t( thread_mixin_t & self )
+		lock_guard_t( thread_mixin & self )
 			: m_lock( self.m_lock )
 		{}
 
@@ -1947,42 +1954,42 @@ struct mixin_selector
 template<>
 struct mixin_selector< thread_safety::unsafe, consumer_type::manager >
 {
-	using type = single_threading_manager_mixin_t;
+	using type = thread_unsafe_manager_mixin;
 };
 
 template<>
 struct mixin_selector< thread_safety::safe, consumer_type::manager >
 {
-	using type = multi_threading_manager_mixin_t;
+	using type = thread_safe_manager_mixin;
 };
 
 template<>
 struct mixin_selector< thread_safety::safe, consumer_type::thread >
 {
-	using type = thread_mixin_t;
+	using type = thread_mixin;
 };
 
 //
-// basic_methods_impl_mixin_t
+// basic_methods_impl_mixin
 //
 
 //FIXME: document this!
 template<
 	typename ENGINE,
 	typename CONSUMER >
-class basic_methods_impl_mixin_t
+class basic_methods_impl_mixin
 	:	protected mixin_selector< typename ENGINE::thread_safety, CONSUMER >::type
 	,	public ENGINE::defaults_t
 {
-	using mixin_t = typename mixin_selector<
+	using mixin_type = typename mixin_selector<
 			typename ENGINE::thread_safety, CONSUMER >::type;
 
-	using timer_holder = timer_object_holder_t< typename ENGINE::thread_safety >;
+	using timer_holder = timer_object_holder< typename ENGINE::thread_safety >;
 
 public :
 	//! Constructor with all parameters.
 	template< typename... ARGS >
-	basic_methods_impl_mixin_t(
+	basic_methods_impl_mixin(
 		ARGS && ... args )
 		:	m_engine( std::forward< ARGS >(args)... )
 	{
@@ -2059,7 +2066,7 @@ public :
 		//! Action for the timer.
 		timer_action_t action )
 	{
-		typename mixin_t::lock_guard_t locker{ *this };
+		typename mixin_type::lock_guard_t locker{ *this };
 
 		this->ensure_started();
 
@@ -2099,7 +2106,7 @@ public :
 		//! Timer to be deactivated.
 		timer_holder timer )
 	{
-		typename mixin_t::lock_guard_t locker{ *this };
+		typename mixin_type::lock_guard_t locker{ *this };
 
 		m_engine.deactivate( timer );
 	}
@@ -2110,24 +2117,24 @@ protected :
 };
 
 //
-// manager_impl_template_t
+// manager_impl_template
 //
 
 //FIXME: document this!
 template< typename ENGINE >
-class manager_impl_template_t
-	:	public basic_methods_impl_mixin_t< ENGINE, consumer_type::manager > 
+class manager_impl_template
+	:	public basic_methods_impl_mixin< ENGINE, consumer_type::manager > 
 {
-	using base_type_t = basic_methods_impl_mixin_t<
+	using base_type = basic_methods_impl_mixin<
 			ENGINE,
 			consumer_type::manager >;
 
 public :
 	//! Constructor with all parameters.
 	template< typename... ARGS >
-	manager_impl_template_t(
+	manager_impl_template(
 		ARGS && ... args )
-		:	base_type_t( std::forward< ARGS >(args)... )
+		:	base_type( std::forward< ARGS >(args)... )
 	{
 	}
 
@@ -2135,7 +2142,7 @@ public :
 	void
 	reset()
 	{
-		typename manager_impl_template_t::lock_guard_t locker{ *this };
+		typename manager_impl_template::lock_guard_t locker{ *this };
 		this->m_engine.clear_all();
 	}
 
@@ -2143,7 +2150,7 @@ public :
 	void
 	process_expired_timers()
 	{
-		typename manager_impl_template_t::lock_guard_t locker{ *this };
+		typename manager_impl_template::lock_guard_t locker{ *this };
 
 		this->m_engine.process_expired_timers( locker );
 	}
@@ -2156,9 +2163,9 @@ public :
 //FIXME: document this!
 template< typename ENGINE >
 class thread_impl_template_t
-	:	public basic_methods_impl_mixin_t< ENGINE, consumer_type::thread > 
+	:	public basic_methods_impl_mixin< ENGINE, consumer_type::thread > 
 {
-	using base_type_t = basic_methods_impl_mixin_t<
+	using base_type = basic_methods_impl_mixin<
 			ENGINE,
 			consumer_type::thread >;
 
@@ -2167,7 +2174,7 @@ public :
 	template< typename... ARGS >
 	thread_impl_template_t(
 		ARGS && ... args )
-		:	base_type_t( std::forward< ARGS >(args)... )
+		:	base_type( std::forward< ARGS >(args)... )
 	{
 	}
 
@@ -2183,7 +2190,7 @@ public :
 	void
 	start()
 	{
-		typename base_type_t::lock_guard_t locker{ *this };
+		typename base_type::lock_guard_t locker{ *this };
 
 		if( this->m_thread )
 			throw std::runtime_error( "timer thread is already started" );
@@ -2198,7 +2205,7 @@ public :
 	void
 	shutdown()
 	{
-		typename base_type_t::lock_guard_t locker{ *this };
+		typename base_type::lock_guard_t locker{ *this };
 
 		if( this->m_thread && !this->m_shutdown )
 		{
@@ -2216,14 +2223,14 @@ public :
 	{
 		std::shared_ptr< std::thread > t;
 		{
-			typename base_type_t::lock_guard_t locker{ *this };
+			typename base_type::lock_guard_t locker{ *this };
 			t = this->m_thread;
 		}
 		if( t )
 		{
 			t->join();
 
-			typename base_type_t::lock_guard_t locker{ *this };
+			typename base_type::lock_guard_t locker{ *this };
 			this->m_thread.reset();
 		}
 	}
@@ -2251,7 +2258,7 @@ protected :
 	void
 	body()
 	{
-		typename base_type_t::lock_guard_t locker{ *this };
+		typename base_type::lock_guard_t locker{ *this };
 
 		while( !this->m_shutdown )
 		{
@@ -2273,7 +2280,7 @@ protected :
 	sleep_for_next_event(
 		//! Object's lock.
 		//! The lock is necessary for waiting on condition variable.
-		typename base_type_t::lock_guard_t & lock )
+		typename base_type::lock_guard_t & lock )
 	{
 		if( !this->m_shutdown )
 		{
@@ -2339,7 +2346,7 @@ class timer_wheel_thread_template_t
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
-	using base_type_t =
+	using base_type =
 			details::thread_impl_template_t<
 					details::timer_wheel_engine_t<
 							thread_safety::safe,
@@ -2350,8 +2357,8 @@ public :
 	//! Default constructor.
 	timer_wheel_thread_template_t()
 		:	timer_wheel_thread_template_t(
-				base_type_t::default_wheel_size(),
-				base_type_t::default_granularity(),
+				base_type::default_wheel_size(),
+				base_type::default_granularity(),
 				ERROR_LOGGER(),
 				ACTOR_EXCEPTION_HANDLER() )
 	{}
@@ -2379,7 +2386,7 @@ public :
 		ERROR_LOGGER error_logger,
 		//! An actor exception handler for timer thread.
 		ACTOR_EXCEPTION_HANDLER exception_handler )
-		:	base_type_t(
+		:	base_type(
 				wheel_size,
 				granularity,
 				error_logger,
@@ -2406,14 +2413,14 @@ template<
 	typename ACTOR_EXCEPTION_HANDLER >
 class timer_wheel_manager_template_t
 	: public
-		details::manager_impl_template_t<
+		details::manager_impl_template<
 				details::timer_wheel_engine_t<
 						THREAD_SAFETY,
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
-	using base_type_t = 
-			details::manager_impl_template_t<
+	using base_type = 
+			details::manager_impl_template<
 					details::timer_wheel_engine_t<
 							THREAD_SAFETY,
 							ERROR_LOGGER,
@@ -2423,8 +2430,8 @@ public :
 	//! Default constructor.
 	timer_wheel_manager_template_t()
 		:	timer_wheel_manager_template_t(
-				base_type_t::default_wheel_size(),
-				base_type_t::default_granularity(),
+				base_type::default_wheel_size(),
+				base_type::default_granularity(),
 				ERROR_LOGGER(),
 				ACTOR_EXCEPTION_HANDLER() )
 	{}
@@ -2452,7 +2459,7 @@ public :
 		ERROR_LOGGER error_logger,
 		//! An actor exception handler for timer thread.
 		ACTOR_EXCEPTION_HANDLER exception_handler )
-		:	base_type_t(
+		:	base_type(
 				wheel_size,
 				granularity,
 				error_logger,
@@ -2511,7 +2518,7 @@ class timer_list_thread_template_t
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
-	using base_type_t =
+	using base_type =
 			details::thread_impl_template_t<
 					details::timer_list_engine_t<
 							thread_safety::safe,
@@ -2527,7 +2534,7 @@ public :
 	timer_list_thread_template_t(
 		ERROR_LOGGER error_logger,
 		ACTOR_EXCEPTION_HANDLER actor_exception_handler )
-		:	base_type_t( error_logger, actor_exception_handler )
+		:	base_type( error_logger, actor_exception_handler )
 	{
 	}
 };
@@ -2551,14 +2558,14 @@ template<
 	typename ACTOR_EXCEPTION_HANDLER >
 class timer_list_manager_template_t
 	: public
-		details::manager_impl_template_t<
+		details::manager_impl_template<
 				details::timer_list_engine_t<
 						THREAD_SAFETY,
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
-	using base_type_t =
-			details::manager_impl_template_t<
+	using base_type =
+			details::manager_impl_template<
 					details::timer_list_engine_t<
 							THREAD_SAFETY,
 							ERROR_LOGGER,
@@ -2573,7 +2580,7 @@ public :
 	timer_list_manager_template_t(
 		ERROR_LOGGER error_logger,
 		ACTOR_EXCEPTION_HANDLER actor_exception_handler )
-		:	base_type_t( error_logger, actor_exception_handler )
+		:	base_type( error_logger, actor_exception_handler )
 	{
 	}
 };
@@ -2623,7 +2630,7 @@ class timer_heap_thread_template_t
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
-	using base_type_t =
+	using base_type =
 			details::thread_impl_template_t<
 					details::timer_heap_engine_t<
 							thread_safety::safe,
@@ -2638,7 +2645,7 @@ public :
 	 */
 	timer_heap_thread_template_t()
 		:	timer_heap_thread_template_t(
-				base_type_t::default_initial_heap_capacity(),
+				base_type::default_initial_heap_capacity(),
 				ERROR_LOGGER(),
 				ACTOR_EXCEPTION_HANDLER() )
 	{}
@@ -2661,7 +2668,7 @@ public :
 		ERROR_LOGGER error_logger,
 		//! An actor exception handler for timer thread.
 		ACTOR_EXCEPTION_HANDLER exception_handler )
-		:	base_type_t(
+		:	base_type(
 				initial_heap_capacity,
 				error_logger,
 				exception_handler )
@@ -2687,14 +2694,14 @@ template<
 	typename ACTOR_EXCEPTION_HANDLER >
 class timer_heap_manager_template_t
 	: public
-		details::manager_impl_template_t<
+		details::manager_impl_template<
 				details::timer_heap_engine_t<
 						THREAD_SAFETY,
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
-	using base_type_t =
-		details::manager_impl_template_t<
+	using base_type =
+		details::manager_impl_template<
 				details::timer_heap_engine_t<
 						THREAD_SAFETY,
 						ERROR_LOGGER,
@@ -2708,7 +2715,7 @@ public :
 	 */
 	timer_heap_manager_template_t()
 		:	timer_heap_manager_template_t(
-				base_type_t::default_initial_heap_capacity(),
+				base_type::default_initial_heap_capacity(),
 				ERROR_LOGGER(),
 				ACTOR_EXCEPTION_HANDLER() )
 	{}
@@ -2731,7 +2738,7 @@ public :
 		ERROR_LOGGER error_logger,
 		//! An actor exception handler for timer thread.
 		ACTOR_EXCEPTION_HANDLER exception_handler )
-		:	base_type_t(
+		:	base_type(
 				initial_heap_capacity,
 				error_logger,
 				exception_handler )
