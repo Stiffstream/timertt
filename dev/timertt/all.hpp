@@ -2012,10 +2012,10 @@ private :
 //FIXME: document this!
 struct thread_unsafe_manager_mixin
 {
-	class lock_guard_t
+	class lock_guard
 	{
 	public :
-		lock_guard_t( thread_unsafe_manager_mixin & ) {}
+		lock_guard( thread_unsafe_manager_mixin & ) {}
 
 		void lock() {}
 		void unlock() {}
@@ -2036,12 +2036,12 @@ struct thread_safe_manager_mixin
 {
 	std::mutex m_lock;
 
-	class lock_guard_t
+	class lock_guard
 	{
 		std::unique_lock< std::mutex > m_lock;
 
 	public :
-		lock_guard_t( thread_safe_manager_mixin & self )
+		lock_guard( thread_safe_manager_mixin & self )
 			: m_lock( self.m_lock )
 		{}
 
@@ -2068,12 +2068,12 @@ struct thread_mixin
 
 	std::shared_ptr< std::thread > m_thread;
 
-	class lock_guard_t
+	class lock_guard
 	{
 		std::unique_lock< std::mutex > m_lock;
 
 	public :
-		lock_guard_t( thread_mixin & self )
+		lock_guard( thread_mixin & self )
 			: m_lock( self.m_lock )
 		{}
 
@@ -2226,7 +2226,7 @@ public :
 		//! Action for the timer.
 		timer_action action )
 	{
-		typename mixin_type::lock_guard_t locker{ *this };
+		typename mixin_type::lock_guard locker{ *this };
 
 		this->ensure_started();
 
@@ -2266,7 +2266,7 @@ public :
 		//! Timer to be deactivated.
 		timer_holder timer )
 	{
-		typename mixin_type::lock_guard_t locker{ *this };
+		typename mixin_type::lock_guard locker{ *this };
 
 		m_engine.deactivate( timer );
 	}
@@ -2302,7 +2302,7 @@ public :
 	void
 	reset()
 	{
-		typename manager_impl_template::lock_guard_t locker{ *this };
+		typename manager_impl_template::lock_guard locker{ *this };
 		this->m_engine.clear_all();
 	}
 
@@ -2310,7 +2310,7 @@ public :
 	void
 	process_expired_timers()
 	{
-		typename manager_impl_template::lock_guard_t locker{ *this };
+		typename manager_impl_template::lock_guard locker{ *this };
 
 		this->m_engine.process_expired_timers( locker );
 	}
@@ -2350,7 +2350,7 @@ public :
 	void
 	start()
 	{
-		typename base_type::lock_guard_t locker{ *this };
+		typename base_type::lock_guard locker{ *this };
 
 		if( this->m_thread )
 			throw std::runtime_error( "timer thread is already started" );
@@ -2365,7 +2365,7 @@ public :
 	void
 	shutdown()
 	{
-		typename base_type::lock_guard_t locker{ *this };
+		typename base_type::lock_guard locker{ *this };
 
 		if( this->m_thread && !this->m_shutdown )
 		{
@@ -2383,14 +2383,14 @@ public :
 	{
 		std::shared_ptr< std::thread > t;
 		{
-			typename base_type::lock_guard_t locker{ *this };
+			typename base_type::lock_guard locker{ *this };
 			t = this->m_thread;
 		}
 		if( t )
 		{
 			t->join();
 
-			typename base_type::lock_guard_t locker{ *this };
+			typename base_type::lock_guard locker{ *this };
 			this->m_thread.reset();
 		}
 	}
@@ -2418,7 +2418,7 @@ protected :
 	void
 	body()
 	{
-		typename base_type::lock_guard_t locker{ *this };
+		typename base_type::lock_guard locker{ *this };
 
 		while( !this->m_shutdown )
 		{
@@ -2440,7 +2440,7 @@ protected :
 	sleep_for_next_event(
 		//! Object's lock.
 		//! The lock is necessary for waiting on condition variable.
-		typename base_type::lock_guard_t & lock )
+		typename base_type::lock_guard & lock )
 	{
 		if( !this->m_shutdown )
 		{
