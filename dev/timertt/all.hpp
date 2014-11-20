@@ -2256,156 +2256,6 @@ protected :
 	}
 };
 
-//
-// thread_basic_t
-//
-
-/*!
- * \brief A common base class for thread templates.
- *
- * Incapsulates basic features (like mutex, condition variable, thread
- * and so on).
- *
- * \tparam ERROR_LOGGER type of logger for errors detected during
- * timer thread execution. Interface for error logger is defined
- * by default_error_logger class.
- *
- * \tparam ACTOR_EXCEPTION_HANDLER type of handler for dealing with
- * exceptions thrown from timer actors. Interface for exception handler
- * is defined by default_actor_exception_handler.
- */
-template<
-	typename ERROR_LOGGER,
-	typename ACTOR_EXCEPTION_HANDLER >
-class thread_basic_t
-{
-	thread_basic_t( const thread_basic_t & ) = delete;
-	thread_basic_t &
-	operator=( const thread_basic_t & ) = delete;
-
-public :
-	//! Default constructor.
-	thread_basic_t()
-		:	thread_basic_t(
-				ERROR_LOGGER(),
-				ACTOR_EXCEPTION_HANDLER() )
-	{}
-
-	//! Constructor with all parameters.
-	thread_basic_t(
-		//! An error logger for timer thread.
-		ERROR_LOGGER error_logger,
-		//! An actor exception handler for timer thread.
-		ACTOR_EXCEPTION_HANDLER exception_handler )
-		:	m_error_logger( error_logger )
-		,	m_exception_handler( exception_handler )
-	{
-	}
-
-	//! Destructor.
-	/*!
-	 * \attention Derived classes must call shutdown_and_join() in
-	 * destructor by itself.
-	 */
-	~thread_basic_t()
-	{
-	}
-
-	//! Start timer thread.
-	/*!
-	 * \throw std::runtime_error if thread is already started.
-	 */
-	void
-	start()
-	{
-		std::lock_guard< std::mutex > lock( m_lock );
-
-		if( m_thread )
-			throw std::runtime_error( "timer_thread is already started" );
-		else
-			m_shutdown = false;
-
-		m_thread = std::make_shared< std::thread >(
-				std::bind( &thread_basic_t::body, this ) );
-	}
-
-	//! Initiate shutdown for the timer thread without waiting for completion.
-	void
-	shutdown()
-	{
-		std::lock_guard< std::mutex > lock( m_lock );
-
-		if( m_thread && !m_shutdown )
-		{
-			m_shutdown = true;
-			m_condition.notify_one();
-		}
-	}
-
-	//! Wait for completion of timer thread.
-	/*!
-	 * Method shutdown() must be called somewhere else.
-	 */
-	void
-	join()
-	{
-		std::shared_ptr< std::thread > t;
-		{
-			std::lock_guard< std::mutex > lock( m_lock );
-			t = m_thread;
-		}
-		if( t )
-		{
-			t->join();
-
-			std::lock_guard< std::mutex > lock( m_lock );
-			m_thread.reset();
-		}
-	}
-
-	//! Initiate shutdown and wait for completion.
-	void
-	shutdown_and_join()
-	{
-		shutdown();
-		join();
-	}
-
-protected :
-	/*!
-	 * \name Object's attributes.
-	 * \{
-	 */
-	//! Shutdown flag.
-	bool m_shutdown = false;
-
-	//! Object's lock.
-	std::mutex m_lock;
-
-	//! Condition variable for sleeping on the timer.
-	std::condition_variable m_condition;
-
-	//! Thread object.
-	/*!
-	 * Created in start() method.
-	 */
-	std::shared_ptr< std::thread > m_thread;
-
-	//! Error logger.
-	ERROR_LOGGER m_error_logger;
-
-	//! Exception handler.
-	ACTOR_EXCEPTION_HANDLER m_exception_handler;
-	/*!
-	 * \}
-	 */
-
-	//! Thread body.
-	virtual void
-	body() = 0;
-
-};
-
 } /* namespace details */
 
 //
@@ -2457,13 +2307,12 @@ class timer_wheel_thread_template_t
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
-	typedef
+	using base_type_t =
 			details::thread_impl_template_t<
 					details::timer_wheel_engine_t<
 							threading::multi,
 							ERROR_LOGGER,
-							ACTOR_EXCEPTION_HANDLER > >
-			base_type_t;
+							ACTOR_EXCEPTION_HANDLER > >;
 
 public :
 	//! Default constructor.
@@ -2531,13 +2380,12 @@ class timer_wheel_manager_template_t
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
-	typedef
+	using base_type_t = 
 			details::manager_impl_template_t<
 					details::timer_wheel_engine_t<
 							THREADING,
 							ERROR_LOGGER,
-							ACTOR_EXCEPTION_HANDLER > >
-			base_type_t;
+							ACTOR_EXCEPTION_HANDLER > >;
 
 public :
 	//! Default constructor.
@@ -2624,220 +2472,31 @@ template<
 	typename ERROR_LOGGER,
 	typename ACTOR_EXCEPTION_HANDLER >
 class timer_list_thread_template_t
-	:	public details::thread_basic_t< ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >
+	: public
+		details::thread_impl_template_t<
+				details::timer_list_engine_t<
+						threading::multi,
+						ERROR_LOGGER,
+						ACTOR_EXCEPTION_HANDLER > > 
 {
-	//! An alias for base class.
-	using base_type_t = details::thread_basic_t<
-			ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >;
+	using base_type_t =
+			details::thread_impl_template_t<
+					details::timer_list_engine_t<
+							threading::multi,
+							ERROR_LOGGER,
+							ACTOR_EXCEPTION_HANDLER > >;
 
 public :
 	//! Default constructor.
 	timer_list_thread_template_t()
-		:	timer_list_thread_template_t(
-				ERROR_LOGGER(),
-				ACTOR_EXCEPTION_HANDLER() )
 	{}
 
 	//! Constructor with all parameters.
 	timer_list_thread_template_t(
-		//! An error logger for timer thread.
 		ERROR_LOGGER error_logger,
-		//! An actor exception handler for timer thread.
-		ACTOR_EXCEPTION_HANDLER exception_handler )
-		:	base_type_t( error_logger, exception_handler )
-		,	m_engine( error_logger, exception_handler )
+		ACTOR_EXCEPTION_HANDLER actor_exception_handler )
+		:	base_type_t( error_logger, actor_exception_handler )
 	{
-	}
-
-	//! Destructor.
-	~timer_list_thread_template_t()
-	{
-		this->shutdown_and_join();
-	}
-
-	//! Create timer to be activated later.
-	timer_holder_t
-	allocate()
-	{
-		return m_engine.allocate();
-	}
-
-	//! Activate timer and schedule it for execution.
-	/*!
-	 *
-	 * \throw std::exception If timer thread is not started.
-	 * \throw std::exception If \a timer is already activated.
-	 *
-	 * \tparam DURATION_1 actual type which represents time duration.
-	 */
-	template< class DURATION_1 >
-	void
-	activate(
-		//! Timer to be activated.
-		timer_holder_t timer,
-		//! Pause for timer execution.
-		DURATION_1 pause,
-		//! Action for the timer.
-		timer_action_t action )
-	{
-		activate(
-				std::move( timer ),
-				pause,
-				monotonic_clock_t::duration::zero(),
-				std::move( action ) );
-	}
-
-	//! Activate timer and schedule it for execution.
-	/*!
-	 * There is no need to preallocate timer object. It will
-	 * be allocated automatically, but not be shown to user.
-	 *
-	 * \throw std::exception If timer thread is not started.
-	 *
-	 * \tparam DURATION_1 actual type which represents time duration.
-	 */
-	template< class DURATION_1 >
-	void
-	activate(
-		//! Pause for timer execution.
-		DURATION_1 pause,
-		//! Action for the timer.
-		timer_action_t action )
-	{
-		activate(
-				allocate(),
-				pause,
-				monotonic_clock_t::duration::zero(),
-				std::move( action ) );
-	}
-
-	//! Activate timer and schedule it for execution.
-	/*!
-	 *
-	 * \throw std::exception If timer thread is not started.
-	 * \throw std::exception If \a timer is already activated.
-	 *
-	 * \tparam DURATION_1 actual type which represents time duration.
-	 * \tparam DURATION_2 actual type which represents time duration.
-	 */
-	template< class DURATION_1, class DURATION_2 >
-	void
-	activate(
-		//! Timer to be activated.
-		timer_holder_t timer,
-		//! Pause for timer execution.
-		DURATION_1 pause,
-		//! Repetition period.
-		//! If <tt>DURATION_2::zero() == period</tt> then timer will be
-		//! single-shot.
-		DURATION_2 period,
-		//! Action for the timer.
-		timer_action_t action )
-	{
-		std::lock_guard< std::mutex > lock( this->m_lock );
-
-		if( !this->m_thread )
-			throw std::runtime_error( "timer_thread is not started" );
-
-		if( m_engine.activate(
-				std::move( timer ), pause, period, std::move( action ) ) )
-			// Time point for the head list item changed.
-			// Work thread must handle this.
-			this->m_condition.notify_one();
-	}
-
-	//! Activate timer and schedule it for execution.
-	/*!
-	 * There is no need to preallocate timer object. It will
-	 * be allocated automatically, but not be shown to user.
-	 *
-	 * \throw std::exception If timer thread is not started.
-	 *
-	 * \tparam DURATION_1 actual type which represents time duration.
-	 * \tparam DURATION_2 actual type which represents time duration.
-	 */
-	template< class DURATION_1, class DURATION_2 >
-	void
-	activate(
-		//! Pause for timer execution.
-		DURATION_1 pause,
-		//! Repetition period.
-		//! If <tt>DURATION_2::zero() == period</tt> then timer will be
-		//! single-shot.
-		DURATION_2 period,
-		//! Action for the timer.
-		timer_action_t action )
-	{
-		activate( allocate(), pause, period, std::move( action ) );
-	}
-
-	//! Deactivate timer and remove it from the list.
-	void
-	deactivate(
-		//! Timer to be deactivated.
-		timer_holder_t timer )
-	{
-		if( !timer )
-			return;
-
-		std::lock_guard< std::mutex > lock( this->m_lock );
-
-		m_engine.deactivate( std::move( timer ) );
-	}
-
-private :
-	/*!
-	 * \name Object's attributes.
-	 * \{
-	 */
-	//! Actual timer engine.
-	details::timer_list_engine_t<
-					threading::multi,
-					ERROR_LOGGER,
-					ACTOR_EXCEPTION_HANDLER >
-			m_engine;
-	/*!
-	 * \}
-	 */
-
-	//! Thread body.
-	virtual void
-	body() override
-	{
-		std::unique_lock< std::mutex > lock( this->m_lock );
-
-		while( !this->m_shutdown )
-		{
-			m_engine.process_expired_timers( lock );
-
-			sleep_for_next_event( lock );
-		}
-
-		m_engine.clear_all();
-	}
-
-	/*!
-	 * \brief Waiting for next event to process.
-	 *
-	 * If the list is not emply the thread will sleep until
-	 * time point of the first timer in the list.
-	 */
-	void
-	sleep_for_next_event(
-		//! Object's lock.
-		//! The lock is necessary for waiting on condition variable.
-		std::unique_lock< std::mutex > & lock )
-	{
-		if( !this->m_shutdown )
-		{
-			if( !m_engine.empty() )
-			{
-				auto time_point = m_engine.nearest_time_point();
-				this->m_condition.wait_until( lock, time_point );
-			}
-			else
-				this->m_condition.wait( lock );
-		}
 	}
 };
 
@@ -2858,20 +2517,20 @@ template<
 	threading THREADING,
 	typename ERROR_LOGGER,
 	typename ACTOR_EXCEPTION_HANDLER >
-class timer_list_manager_template_t : public
+class timer_list_manager_template_t
+	: public
 		details::manager_impl_template_t<
 				details::timer_list_engine_t<
 						THREADING,
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
-	typedef
+	using base_type_t =
 			details::manager_impl_template_t<
 					details::timer_list_engine_t<
 							THREADING,
 							ERROR_LOGGER,
-							ACTOR_EXCEPTION_HANDLER > >
-			base_type_t;
+							ACTOR_EXCEPTION_HANDLER > >;
 
 public :
 	//! Default constructor.
@@ -2925,20 +2584,21 @@ template<
 	typename ERROR_LOGGER,
 	typename ACTOR_EXCEPTION_HANDLER >
 class timer_heap_thread_template_t
-	:	public details::thread_basic_t< ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >
+	: public
+		details::thread_impl_template_t<
+				details::timer_heap_engine_t<
+						threading::multi,
+						ERROR_LOGGER,
+						ACTOR_EXCEPTION_HANDLER > > 
 {
-	//! An alias for base class.
-	using base_type_t = details::thread_basic_t<
-			ERROR_LOGGER, ACTOR_EXCEPTION_HANDLER >;
+	using base_type_t =
+			details::thread_impl_template_t<
+					details::timer_heap_engine_t<
+							threading::multi,
+							ERROR_LOGGER,
+							ACTOR_EXCEPTION_HANDLER > >;
 
 public :
-	//! Default initial capacity of heap-array.
-	inline static
-	std::size_t default_initial_heap_capacity()
-	{
-		return 64;
-	}
-
 	//! Default constructor.
 	/*!
 	 * Value default_initial_heap_capacity() is used as initial
@@ -2946,7 +2606,7 @@ public :
 	 */
 	timer_heap_thread_template_t()
 		:	timer_heap_thread_template_t(
-				default_initial_heap_capacity(),
+				base_type_t::default_initial_heap_capacity(),
 				ERROR_LOGGER(),
 				ACTOR_EXCEPTION_HANDLER() )
 	{}
@@ -2969,480 +2629,11 @@ public :
 		ERROR_LOGGER error_logger,
 		//! An actor exception handler for timer thread.
 		ACTOR_EXCEPTION_HANDLER exception_handler )
-		:	base_type_t( error_logger, exception_handler )
-	{
-		m_heap.reserve( initial_heap_capacity );
-	}
-
-	//! Destructor.
-	~timer_heap_thread_template_t()
-	{
-		this->shutdown_and_join();
-	}
-
-	//! Create timer to be activated later.
-	timer_holder_t
-	allocate()
-	{
-		return timer_holder_t( new heap_timer_t() );
-	}
-
-	//! Activate timer and schedule it for execution.
-	/*!
-	 *
-	 * \throw std::exception If timer thread is not started.
-	 * \throw std::exception If \a timer is already activated.
-	 *
-	 * \tparam DURATION_1 actual type which represents time duration.
-	 */
-	template< class DURATION_1 >
-	void
-	activate(
-		//! Timer to be activated.
-		timer_holder_t timer,
-		//! Pause for timer execution.
-		DURATION_1 pause,
-		//! Action for the timer.
-		timer_action_t action )
-	{
-		activate(
-				std::move( timer ),
-				pause,
-				monotonic_clock_t::duration::zero(),
-				std::move( action ) );
-	}
-
-	//! Activate timer and schedule it for execution.
-	/*!
-	 * There is no need to preallocate timer object. It will
-	 * be allocated automatically, but not be shown to user.
-	 *
-	 * \throw std::exception If timer thread is not started.
-	 *
-	 * \tparam DURATION_1 actual type which represents time duration.
-	 */
-	template< class DURATION_1 >
-	void
-	activate(
-		//! Pause for timer execution.
-		DURATION_1 pause,
-		//! Action for the timer.
-		timer_action_t action )
-	{
-		activate(
-				allocate(),
-				pause,
-				monotonic_clock_t::duration::zero(),
-				std::move( action ) );
-	}
-
-	//! Activate timer and schedule it for execution.
-	/*!
-	 *
-	 * \throw std::exception If timer thread is not started.
-	 * \throw std::exception If \a timer is already activated.
-	 *
-	 * \tparam DURATION_1 actual type which represents time duration.
-	 * \tparam DURATION_2 actual type which represents time duration.
-	 */
-	template< class DURATION_1, class DURATION_2 >
-	void
-	activate(
-		//! Timer to be activated.
-		timer_holder_t timer,
-		//! Pause for timer execution.
-		DURATION_1 pause,
-		//! Repetition period.
-		//! If <tt>DURATION_2::zero() == period</tt> then timer will be
-		//! single-shot.
-		DURATION_2 period,
-		//! Action for the timer.
-		timer_action_t action )
-	{
-		std::lock_guard< std::mutex > lock( this->m_lock );
-
-		if( !this->m_thread )
-			throw std::runtime_error( "timer_thread is not started" );
-
-		auto heap_timer = timer.cast_to< heap_timer_t >();
-		ensure_timer_deactivated( heap_timer );
-
-		// Timer object must be correctly (re)initialized.
-		heap_timer->m_action = std::move( action );
-		heap_timer->m_when = monotonic_clock_t::now() + pause;
-		heap_timer->m_period = std::chrono::duration_cast<
-				monotonic_clock_t::duration >( period );
-
-		// Timer must be taken under control.
-		timer_t::increment_references( heap_timer );
-
-		// Timer will be marked as active during insertion into
-		// heap structure.
-		heap_add( heap_timer );
-		if( heap_timer == heap_head() )
-			// Time point for the head list item changed.
-			// Work thread must handle this.
-			this->m_condition.notify_one();
-	}
-
-	//! Activate timer and schedule it for execution.
-	/*!
-	 * There is no need to preallocate timer object. It will
-	 * be allocated automatically, but not be shown to user.
-	 *
-	 * \throw std::exception If timer thread is not started.
-	 *
-	 * \tparam DURATION_1 actual type which represents time duration.
-	 * \tparam DURATION_2 actual type which represents time duration.
-	 */
-	template< class DURATION_1, class DURATION_2 >
-	void
-	activate(
-		//! Pause for timer execution.
-		DURATION_1 pause,
-		//! Repetition period.
-		//! If <tt>DURATION_2::zero() == period</tt> then timer will be
-		//! single-shot.
-		DURATION_2 period,
-		//! Action for the timer.
-		timer_action_t action )
-	{
-		activate( allocate(), pause, period, std::move( action ) );
-	}
-
-	//! Deactivate timer and remove it from the list.
-	void
-	deactivate(
-		//! Timer to be deactivated.
-		timer_holder_t timer )
-	{
-		if( !timer )
-			return;
-
-		std::lock_guard< std::mutex > lock( this->m_lock );
-
-		auto heap_timer = timer.cast_to< heap_timer_t >();
-		if( !heap_timer->deactivated() )
-		{
-			// If this timer is not in processing now it can
-			// be safely destroyed.
-			if( heap_timer != m_timer_in_processing )
-			{
-				heap_remove( heap_timer );
-
-				// We can deactivate timer only after removing.
-				// Because deactivation drops actual timer position.
-				heap_timer->deactivate();
-
-				// Release timer object.
-				timer_t::decrement_references( heap_timer );
-			}
-			else
-			{
-				// Otherwise m_timer_in_processing will be destroyed
-				// after end of timer action processing.
-				// But it must be deactivated right now.
-				heap_timer->deactivate();
-			}
-		}
-	}
-
-private :
-	//! Type of heap timer.
-	struct heap_timer_t : public timer_t
-	{
-		//! A special value which means that timer is deactivated.
-		/*!
-		 * This value is illegal index in heap-array because
-		 * position numbers in heap-array are started from 1, not from 0.
-		 */
-		static const std::size_t deactivation_indicator = 0;
-
-		//! Time of execution for this timer.
-		monotonic_clock_t::time_point m_when;
-
-		//! Period in ticks.
-		/*!
-		 * Zero means that demand is single shot.
-		 */
-		monotonic_clock_t::duration m_period;
-
-		//! Timer action.
-		timer_action_t m_action;
-
-		//! Position in the heap-array.
-		std::size_t m_position = deactivation_indicator;
-
-		//! Is timer deactivated.
-		bool
-		deactivated() const 
-		{
-			return deactivation_indicator == m_position;
-		}
-
-		//! Set deactivation indicator on.
-		void
-		deactivate()
-		{
-			m_position = deactivation_indicator;
-		}
-
-		//! Is this is single shot timer?
-		bool
-		single_shot() const
-		{
-			return monotonic_clock_t::duration::zero() == m_period;
-		}
-	};
-
-	/*!
-	 * \name Object's attributes.
-	 * \{
-	 */
-	//! Array for holding heap data structure.
-	std::vector< heap_timer_t * > m_heap;
-
-	//! Timer which is currently in processing.
-	heap_timer_t * m_timer_in_processing = nullptr;
-	/*!
-	 * \}
-	 */
-
-	/*!
-	 * \brief Hard check for deactivation state of the timer.
-	 *
-	 * \throw std::runtimer_error if timer is not deactivated.
-	 */
-	static void
-	ensure_timer_deactivated( const heap_timer_t * timer )
-	{
-		if( !timer->deactivated() )
-			throw std::runtime_error( "timer is not in 'deactivated' state" );
-	}
-
-	//! Thread body.
-	virtual void
-	body() override
-	{
-		std::unique_lock< std::mutex > lock( this->m_lock );
-
-		while( !this->m_shutdown )
-		{
-			process_ready_to_exec_timers( lock );
-
-			sleep_for_next_event( lock );
-		}
-
-		clear_all();
-	}
-
-	//! Processing all elapsed timers.
-	void
-	process_ready_to_exec_timers(
-		std::unique_lock< std::mutex > & lock )
-	{
-		// Process timers in loop until there are elapsed timers.
-		auto now = monotonic_clock_t::now();
-		while( !this->m_shutdown && !heap_empty() &&
-				now > heap_head()->m_when )
-		{
-			m_timer_in_processing = heap_head();
-			heap_remove( m_timer_in_processing );
-
-			execute_timer_in_processing( lock );
-
-			// If timer has become deactive it must be removed even
-			// it is periodic timer.
-			if( m_timer_in_processing->deactivated() ||
-					m_timer_in_processing->single_shot() )
-			{
-				m_timer_in_processing->deactivate();
-				timer_t::decrement_references( m_timer_in_processing );
-			}
-			else
-			{
-				// This is active periodic timer and it must be resheduled.
-				m_timer_in_processing->m_when +=
-						m_timer_in_processing->m_period;
-				heap_add( m_timer_in_processing );
-			}
-
-			m_timer_in_processing = nullptr;
-		}
-	}
-
-	/*!
-	 * \brief Waiting for next event to process.
-	 *
-	 * If the heap is not emply the thread will sleep until
-	 * time point of the top timer in the heap.
-	 */
-	void
-	sleep_for_next_event(
-		std::unique_lock< std::mutex > & lock )
-	{
-		if( !this->m_shutdown )
-		{
-			if( !heap_empty() )
-			{
-				auto time_point = heap_head()->m_when;
-				this->m_condition.wait_until( lock, time_point );
-			}
-			else
-				this->m_condition.wait( lock );
-		}
-	}
-
-	//! Execute the current timer.
-	void
-	execute_timer_in_processing(
-		//! Object lock.
-		//! This lock will be unlocked before execution of actions
-		//! and locked back after.
-		std::unique_lock< std::mutex > & lock )
-	{
-		lock.unlock();
-
-		try
-		{
-			m_timer_in_processing->m_action();
-		}
-		catch( const std::exception & x )
-		{
-			this->m_exception_handler( x );
-		}
-		catch( ... )
-		{
-			std::ostringstream ss;
-			ss << __FILE__ << "(" << __LINE__ 
-				<< "): an unknown exception from timer action";
-			this->m_error_logger( ss.str() );
-			std::abort();
-		}
-
-		lock.lock();
-	}
-
-	//! Clear all timer demands.
-	void
-	clear_all()
-	{
-		for( auto t : m_heap )
-		{
-			t->deactivate();
-			timer_t::decrement_references( t );
-		}
-
-		m_heap.clear();
-
-		m_timer_in_processing = nullptr;
-	}
-
-	/*!
-	 * \name Methods for work with heap data structure.
-	 * \{
-	 */
-	//! Is heap data structure empty?
-	bool
-	heap_empty() const
-	{
-		return m_heap.empty();
-	}
-
-	//! Get the minimal timer.
-	/*!
-	 * \attention This method must be called only on non-empty heap.
-	 */
-	heap_timer_t *
-	heap_head() const
-	{
-		return m_heap.front();
-	}
-
-	//! Add new timer to the heap data structure.
-	void
-	heap_add( heap_timer_t * timer )
-	{
-		timer->m_position = m_heap.size() + 1;
-		m_heap.push_back( timer );
-
-		while( 1 != timer->m_position )
-		{
-			auto parent = heap_item( timer->m_position / 2 );
-			if( parent->m_when > timer->m_when )
-			{
-				// timer must be heap-up on the place of the parent node.
-				heap_swap( timer, parent );
-			}
-			else
-				// There is no need to modify heap structure anymore.
-				break;
-		}
-	}
-
-	//! Remove timer from the heap data structure.
-	void
-	heap_remove( heap_timer_t * timer )
-	{
-		if( timer->m_position == m_heap.size() )
-			// A special case: timer to remove is a last added item
-			// in the heap. It could be simply removed from heap
-			// without any other actions.
-			m_heap.pop_back();
-		else
-		{
-			auto last_item = m_heap.back();
-			heap_swap( timer, last_item );
-			m_heap.pop_back();
-
-			// last_item must be heap-down to the appropriate place.
-			while( true )
-			{
-				auto left_index = last_item->m_position * 2;
-				auto right_index = left_index + 1;
-				auto min_index = last_item->m_position;
-
-				if( left_index <= m_heap.size() &&
-						heap_item( left_index )->m_when <=
-								heap_item( min_index )->m_when )
-					min_index = left_index;
-
-				if( right_index <= m_heap.size() &&
-						heap_item( right_index )->m_when <=
-								heap_item( min_index )->m_when )
-					min_index = right_index;
-
-				if( min_index != last_item->m_position )
-					heap_swap( last_item, heap_item( min_index ) );
-				else
-					// Heap structure is correct.
-					break;
-			}
-		}
-	}
-
-	//! Swap two heap nodes.
-	void
-	heap_swap( heap_timer_t * a, heap_timer_t * b )
-	{
-		m_heap[ a->m_position - 1 ] = b;
-		m_heap[ b->m_position - 1 ] = a;
-
-		std::swap( a->m_position, b->m_position );
-	}
-
-	//! Get timer by it index.
-	/*!
-	 * This accessor work with respect that positions are started from 1.
-	 */
-	heap_timer_t *
-	heap_item( std::size_t position ) const
-	{
-		return m_heap[ position - 1 ];
-	}
-	/*!
-	 * \}
-	 */
+		:	base_type_t(
+				initial_heap_capacity,
+				error_logger,
+				exception_handler )
+	{}
 };
 
 //
@@ -3463,20 +2654,19 @@ template<
 	typename ERROR_LOGGER,
 	typename ACTOR_EXCEPTION_HANDLER >
 class timer_heap_manager_template_t
-	: public details::manager_impl_template_t<
-					details::timer_heap_engine_t<
-							THREADING,
-							ERROR_LOGGER,
-							ACTOR_EXCEPTION_HANDLER > > 
+	: public
+		details::manager_impl_template_t<
+				details::timer_heap_engine_t<
+						THREADING,
+						ERROR_LOGGER,
+						ACTOR_EXCEPTION_HANDLER > > 
 {
-	typedef details::timer_heap_engine_t<
-					THREADING,
-					ERROR_LOGGER,
-					ACTOR_EXCEPTION_HANDLER >
-			engine_t;
-
-	typedef details::manager_impl_template_t< engine_t >
-			base_type_t;
+	using base_type_t =
+		details::manager_impl_template_t<
+				details::timer_heap_engine_t<
+						THREADING,
+						ERROR_LOGGER,
+						ACTOR_EXCEPTION_HANDLER > >;
 
 public :
 	//! Default constructor.
