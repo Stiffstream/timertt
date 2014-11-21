@@ -2016,6 +2016,14 @@ private :
  */
 struct thread_unsafe_manager_mixin
 {
+	//! A empty class for an object's lock emulation.
+	/*!
+	 * Instance of that class will be used in not-thread-safe
+	 * code in places where object's lock is necessary.
+	 *
+	 * Because this class is empty its usage will be removed by
+	 * optimized compiler.
+	 */
 	class lock_guard
 	{
 	public :
@@ -2667,8 +2675,8 @@ using timer_wheel_thread_t = timer_wheel_thread_template<
  */
 template<
 	typename THREAD_SAFETY,
-	typename ERROR_LOGGER,
-	typename ACTOR_EXCEPTION_HANDLER >
+	typename ERROR_LOGGER = default_error_logger,
+	typename ACTOR_EXCEPTION_HANDLER = default_actor_exception_handler >
 class timer_wheel_manager_template
 	: public
 		details::manager_impl_template<
@@ -2811,8 +2819,8 @@ using timer_list_thread_t = timer_list_thread_template<
  */
 template<
 	typename THREAD_SAFETY,
-	typename ERROR_LOGGER,
-	typename ACTOR_EXCEPTION_HANDLER >
+	typename ERROR_LOGGER = default_error_logger,
+	typename ACTOR_EXCEPTION_HANDLER = default_actor_exception_handler >
 class timer_list_manager_template
 	: public
 		details::manager_impl_template<
@@ -2951,8 +2959,8 @@ using timer_heap_thread_t = timer_heap_thread_template<
  */
 template<
 	typename THREAD_SAFETY,
-	typename ERROR_LOGGER,
-	typename ACTOR_EXCEPTION_HANDLER >
+	typename ERROR_LOGGER = default_error_logger,
+	typename ACTOR_EXCEPTION_HANDLER = default_actor_exception_handler >
 class timer_heap_manager_template
 	: public
 		details::manager_impl_template<
