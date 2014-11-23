@@ -24,6 +24,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
 
@@ -2409,6 +2410,22 @@ public :
 		typename manager_impl_template::lock_guard locker{ *this };
 
 		this->m_engine.process_expired_timers( locker );
+	}
+
+	//! Get the time for next process_expired_timers invocation.
+	/*!
+	 * \return tuple<true,timepoint> if there is a timer to process. Or
+	 * tuple<false,undefined> if there is no timers to be processed.
+	 */
+	std::tuple< bool, monotonic_clock::time_point >
+	nearest_time_point()
+	{
+		typename manager_impl_template::lock_guard locker{ *this };
+		auto e = this->m_engine.empty();
+		if( !e )
+			return std::make_tuple( true, this->m_engine.nearest_time_point() );
+		else
+			return std::make_tuple( false, monotonic_clock::time_point() );
 	}
 };
 
