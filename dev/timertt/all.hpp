@@ -557,7 +557,8 @@ public :
 
 	//! Activate timer and schedule it for execution.
 	/*!
-	 * \note Always return \a false.
+	 * \return Value \a true is returned only when the first timer is added to
+	 * the empty wheel.
 	 *
 	 * \throw std::exception If timer thread is not started.
 	 * \throw std::exception If \a timer is already activated.
@@ -588,6 +589,10 @@ public :
 		timer_object< THREAD_SAFETY >::increment_references( wheel_timer );
 		// It is an active timer now.
 		wheel_timer->m_status = timer_status::active;
+		// Count of timers changed.
+		// Assume that there will not be any exception during
+		// insertion of timer to the wheel.
+		this->m_timer_count += 1;
 
 		// Calculate the demand position in the wheel.
 		set_position_in_the_wheel(
@@ -602,7 +607,9 @@ public :
 
 		insert_demand_to_wheel( wheel_timer );
 
-		return false;
+		// If wheel was empty and this is the first timer added
+		// the value of timer_count must be exactly 1.
+		return 1 == this->m_timer_count;
 	}
 
 	//! Deactivate timer and remove it from the wheel.
@@ -619,6 +626,7 @@ public :
 			wheel_timer->m_status = timer_status::deactivated;
 
 			// Release timer object.
+			this->m_timer_count -= 1;
 			timer_object< THREAD_SAFETY >::decrement_references( wheel_timer );
 		}
 		else if( timer_status::wait_for_execution == wheel_timer->m_status )
@@ -677,13 +685,11 @@ public :
 
 	/*!
 	 * \brief Is empty timer list?
-	 *
-	 * \return false always
 	 */
 	bool
 	empty() const
 	{
-		return false;
+		return 0 == this->m_timer_count;
 	}
 
 	/*!
@@ -722,8 +728,9 @@ public :
 		}
 
 		// For the case of timer_engine restart.
-		m_current_tick_border = monotonic_clock::now() + m_granularity;
-		m_current_position = 0;
+		this->m_timer_count = 0;
+		this->m_current_tick_border = monotonic_clock::now() + m_granularity;
+		this->m_current_position = 0;
 	}
 
 private :
@@ -779,6 +786,9 @@ private :
 
 	//! Index of the current position in the wheel.
 	unsigned int m_current_position = 0;
+
+	//! Count of timers in the wheel.
+	std::size_t m_timer_count = 0;
 
 	//! Right border of the current tick.
 	/*!
@@ -1050,6 +1060,7 @@ private :
 			{
 				// Timer must be utilized.
 				t->m_status = timer_status::deactivated;
+				this->m_timer_count -= 1;
 				timer_object< THREAD_SAFETY >::decrement_references( t );
 			}
 		}

@@ -4,6 +4,7 @@ MxxRu::Cpp::composite_target {
 
 	required_prj 'test/timertt/manager_basic_checks/timer_wheel_single.ut.rb'
 	required_prj 'test/timertt/manager_basic_checks/timer_wheel_multi.ut.rb'
+	required_prj 'test/timertt/manager_basic_checks/timer_wheel_timer_count.ut.rb'
 
 	required_prj 'test/timertt/manager_basic_checks/timer_list_single.ut.rb'
 	required_prj 'test/timertt/manager_basic_checks/timer_list_multi.ut.rb'
