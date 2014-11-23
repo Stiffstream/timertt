@@ -3,6 +3,7 @@ require 'mxx_ru/cpp'
 MxxRu::Cpp::composite_target {
 
 	required_prj 'sample/timertt/manager/trivial_thread_unsafe/prj.ut.rb'
+	required_prj 'sample/timertt/manager/trivial_thread_safe/prj.ut.rb'
 
 	required_prj 'sample/timertt/list/trivial/prj.ut.rb'
 
