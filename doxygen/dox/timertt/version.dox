@@ -1,6 +1,18 @@
 /*!
  * \page timertt_version timertt Version History
  *
+ * \section timertt_version_1_1_0 1.1.0
+ *
+ * A timer_managers have been introduced. They allow use timer inside just one
+ * thread without necessity of creating additional working thread.
+ *
+ * For the most names in the library the naming convention have been changed:
+ * suffix _t has been removed. Some names are kept intact for compatibility
+ * with version 1.0 (for example: timertt::timer_t, timertt::timer_holder_t,
+ * timertt::timer_wheel_thread_t,
+ * timertt::timer_heap_thread_t,
+ * timertt::timer_list_thread_t).
+ *
  * \section timertt_version_1_0_2 1.0.2
  *
  * Fix warning which is reported by some compiler at high warning level.

@@ -30,7 +30,7 @@ timertt is a header-only library. All the code in single header file
 <tt>timertt/all.hpp</tt>. So to add timertt to your project is only necessary
 to add path to <tt>timertt/all.hpp</tt> to INCLUDE path.
 
-\section timertt_getting_started__basic_usage Basic Usage
+\section timertt_getting_started__basic_usage_of_timer_threads Basic Usage of Timer Threads
 
 An object of appropriate thread type must be created. For example:
 \code
@@ -131,6 +131,123 @@ tt.activate( std::chrono::milliseconds( 500 ),
 
 tt.join();
 \endcode
+
+\section timertt_getting_started__basic_usage_of_timer_managers Basic Usage of Timer Managers
+
+An object of appropriate manager type must be created. For example:
+\code
+timertt::timer_wheel_manager_template< timertt::thread_safety::unsafe > tm;
+\endcode
+
+or:
+\code
+timertt::timer_heap_manager_template< timertt::thread_safety::safe > tm;
+\endcode
+
+Each timer manager parametrized by several template parameters. The first of
+them is the most important: it defines thread safety for the manager. This
+parameter can have one of the two values:
+
+- timertt::thread_safety::unsafe. This value means that manager will not be
+  thread safe. Only one thread can work with such manager. The behavior and
+  consequences of using not-thread-safe manager from several parallel threads
+  are undefined;
+- timertt::thread_safety::safe. This value means that manager can be used from
+  several parallel threads. But with some care: any thread can call
+  allocate/activate/deactivate methods. But process_expired_timers and
+  nearest_time_point/timeout_before_nearest_timer must be called on the context
+  on just one thread.
+
+The not-thread-safe manages (e.g. managers with thread_safety::unsafe
+parameter) are intended for single-threading applications where just one
+thread is used for all application tasks. Those managers do not use any
+synchronization primitives (like mutexes or atomics).
+
+The thread-safe manages (e.g. managers with thread_safety::safe parameter) are
+intended for multi-threading applications where several threads can create and
+schedule timers but just one thread handles them all. And this timer-handling
+thread does some other work (perform event-loop actions for example). If
+timer-handling thread does only timer-processing actions it is better to think
+about using timer_threads (see description above).
+
+Like with timer threads two kinds of timers are supported: single-shot and
+periodic:
+\code
+timertt::timer_heap_manager_template< timertt::thread_safety::unsafe > tm( ... );
+// Anonymous single-shot timer.
+tm.activate( std::chrono::milliseconds(100), [] { ... } );
+// Anonymous periodic timer.
+tm.activate(
+  std::chrono::milliseconds(100),
+  std::chrono::milliseconds(500),
+  [] { ... } );
+
+// Preallocated single-shot timer.
+auto id1 = tm.allocate();
+tm.activate( id1, std::chrono::milliseconds(100), [] { ... } );
+// Preallocated periodic timer.
+auto id2 = tm.allocate();
+tm.activate( id2,
+  std::chrono::milliseconds(100),
+  std::chrono::milliseconds(500),
+  [] { ... } );
+
+// Deactivation of timer.
+auto id3 = tm.allocate();
+tm.activate( id3,
+  std::chrono::milliseconds(100),
+  std::chrono::milliseconds(500),
+  [id3, &tm] {
+    ...
+    tm.deactivate( id3 );
+  } );
+\endcode
+
+Timer manages, unlike timer threads, have no its own working context for loop
+of sleep-exec actions. Because of that the user of a timer manager must write
+this loop by itself. Typically this loop will looks like:
+\code
+timertt::timer_heap_manager_template< timertt::thread_safety::unsafe > tm( ... );
+...
+while( true )
+{
+  process_some_application_specific_events();
+
+  // Handle all expired timers.
+  tm.process_expired_timers();
+  // Sleep for the next timer expiration.
+  std::this_thread::sleep_for(
+    tm.timeout_before_nearest_timer( std::chrono::milliseconds(100) ) );
+}
+\endcode
+
+There is another timer_manager method for handling timeouts before next timer
+expiration: nearest_time_point, but it requires some attention:
+\code
+while( true )
+{
+  process_some_application_specific_events();
+
+  // Handle all expired timers.
+  tm.process_expired_timers();
+  auto n = tm.nearest_time_point();
+  if( std::get<0>( n ) )
+  {
+    // There is at least one timer.
+    std::this_thread::sleep_until( std::get<1>( n ) );
+  }
+  else
+    // There is no timers at all.
+    // Do some other actions or simple finish work.
+    wait_for_something();
+}
+\endcode
+
+Please note that there is no need to start or stop timer manager: it is ready
+for work just after creation. This is a big difference from timer threads: a
+timer can be scheduled to a timer thread only after invocation of start method
+for the timer thread. But allocate/activate methods for timer managers can be
+called at any time.
 
  */
 
