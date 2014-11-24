@@ -2438,6 +2438,33 @@ public :
 		else
 			return std::make_tuple( false, monotonic_clock::time_point() );
 	}
+
+	//! Get the sleeping time before the earlist timer expiration.
+	/*!
+	 * \return actual sleeping time if there is at least one timer.
+	 * Or \a default_timeout if there is no any timers.
+	 *
+	 * \tparam DURATION type for \a default_timeout
+	 */
+	template< typename DURATION >
+	monotonic_clock::duration
+	timeout_before_nearest_timer(
+		//! Default timeout value which will be used if there is no any timers.
+		DURATION default_timeout )
+	{
+		auto r = this->nearest_time_point();
+		if( std::get<0>( r ) )
+		{
+			auto now = monotonic_clock::now();
+			const auto & f = std::get<1>( r );
+			if( now > f )
+				return monotonic_clock::duration( 0 );
+			else
+				return (f - now);
+		}
+		else
+			return default_timeout;
+	}
 };
 
 //

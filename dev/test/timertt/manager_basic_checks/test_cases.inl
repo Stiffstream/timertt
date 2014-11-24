@@ -76,6 +76,33 @@ UT_UNIT_TEST( single_periodic )
 		"single_periodic" );
 }
 
+UT_UNIT_TEST( nearest_timeout )
+{
+	run_with_time_limit(
+		[]()
+		{
+			timer_manager_t tt;
+
+			auto t1 = tt.timeout_before_nearest_timer( seconds(60) );
+			UT_CHECK_CONDITION( t1 == seconds(60) );
+
+			tt.activate( tt.allocate(),
+					milliseconds( 20 ), [] {} );
+
+			auto t2 = tt.timeout_before_nearest_timer( seconds(60) );
+			UT_CHECK_CONDITION( t2 == seconds(60) );
+			UT_CHECK_CONDITION( t2 == milliseconds(21) );
+
+			std::this_thread::sleep_for( milliseconds( 40 ) );
+			tt.process_expired_timers();
+
+			auto t3 = tt.timeout_before_nearest_timer( seconds(60) );
+			UT_CHECK_CONDITION( t3 == seconds(60) );
+		},
+		1,
+		"nearest_timeout" );
+}
+
 UT_UNIT_TEST( several_single_shots )
 {
 	run_with_time_limit(
