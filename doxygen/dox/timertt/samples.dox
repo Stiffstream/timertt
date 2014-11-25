@@ -14,5 +14,13 @@
  * \example timertt/custom_handler_and_logger/main.cpp
  */
 
+/*!
+ * \example timertt/manager/trivial_thread_safe/main.cpp
+ */
+
+/*!
+ * \example timertt/manager/trivial_thread_unsafe/main.cpp
+ */
+
 // vim:ft=cpp
 
