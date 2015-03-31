@@ -34,10 +34,13 @@ UT_UNIT_TEST( single_shot )
 			tt.activate( tt.allocate(),
 					milliseconds( 20 ), [&v]() { v = "hello"; } );
 
+			UT_CHECK_EQ( 1u, tt.timer_count() );
+
 			std::this_thread::sleep_for( milliseconds( 100 ) );
 
 			tt.process_expired_timers();
 
+			UT_CHECK_EQ( 0u, tt.timer_count() );
 			UT_CHECK_EQ( v, "hello" );
 		},
 		1,
@@ -64,12 +67,15 @@ UT_UNIT_TEST( single_periodic )
 							tt.deactivate( id );
 					} );
 
+			UT_CHECK_EQ( 1u, tt.timer_count() );
+
 			for( int i = 0; i != 6; ++i )
 			{
 				std::this_thread::sleep_for( milliseconds( 30 ) );
 				tt.process_expired_timers();
 			}
 
+			UT_CHECK_EQ( 0u, tt.timer_count() );
 			UT_CHECK_EQ( v, "1111" );
 		},
 		1,
@@ -129,9 +135,13 @@ UT_UNIT_TEST( several_single_shots )
 			tt.activate( tt.allocate(),
 					milliseconds( 140 ), [&v]() { v += "(140)"; } );
 
+			UT_CHECK_EQ( 8u, tt.timer_count() );
+
 			std::this_thread::sleep_for( milliseconds( 200 ) );
 
 			tt.process_expired_timers();
+
+			UT_CHECK_EQ( 0u, tt.timer_count() );
 
 			UT_CHECK_EQ( v, "(20)(40)(60)(80)(90)(100)(120)(140)" );
 		},
@@ -214,7 +224,11 @@ UT_UNIT_TEST( anonymous_timers )
 			tt.activate( milliseconds( 100 ),
 					[&v] () { v += "(s3)"; } );
 
+			UT_CHECK_EQ( 3u, tt.timer_count() );
+
 			do_timer_loop_for( tt, milliseconds( 190 ) );
+
+			UT_CHECK_EQ( 1u, tt.timer_count() );
 
 			UT_CHECK_EQ( v, "(s1)(s2)(s2)(s3)(s2)(s2)" );
 		},
@@ -246,9 +260,13 @@ UT_UNIT_TEST( demands_cleanup_on_shutdown )
 				tt.activate( tt.allocate(), seconds( 10 ), [d1]() {} );
 				tt.activate( tt.allocate(), seconds( 10 ), [d2]() {} );
 				tt.activate( tt.allocate(), seconds( 10 ), [d3]() {} );
+
+				UT_CHECK_EQ( 3u, tt.timer_count() );
 			}
 
 			tt.reset();
+
+			UT_CHECK_EQ( 0u, tt.timer_count() );
 
 			UT_CHECK_EQ( dealloc_counter, -3 );
 		},
@@ -387,10 +405,14 @@ UT_UNIT_TEST( reset_test )
 			int events = 0;
 			for( int i = 0; i != 3; ++i )
 			{
+				UT_CHECK_EQ( 0u, tt.timer_count() );
+
 				tt.activate( tt.allocate(), milliseconds( 5 ),
 					[&] {
 						++events;
 					} );
+
+				UT_CHECK_EQ( 1u, tt.timer_count() );
 
 				std::this_thread::sleep_for( milliseconds( 25 ) );
 				tt.process_expired_timers();

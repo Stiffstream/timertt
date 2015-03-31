@@ -16,6 +16,8 @@ UT_UNIT_TEST( no_demands )
 			timer_thread_t tt;
 
 			tt.start();
+
+			UT_CHECK_EQ( 0u, tt.timer_count() );
 		},
 		1,
 		"no_demands" );
@@ -414,6 +416,8 @@ UT_UNIT_TEST( shutdown_with_restarts )
 			int events = 0;
 			for( int i = 0; i != 3; ++i )
 			{
+				UT_CHECK_EQ( 0u, tt.timer_count() );
+
 				tt.start();
 
 				tt.activate( tt.allocate(), milliseconds( 5 ),
@@ -425,6 +429,7 @@ UT_UNIT_TEST( shutdown_with_restarts )
 				tt.join();
 			}
 
+			UT_CHECK_EQ( 0u, tt.timer_count() );
 			UT_CHECK_EQ( events, 3 );
 		},
 		1,

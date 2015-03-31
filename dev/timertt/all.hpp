@@ -733,6 +733,16 @@ public :
 		this->m_current_position = 0;
 	}
 
+	/*!
+	 * \since v.1.1.1
+	 * \brief Count of timers in the wheel.
+	 */
+	std::size_t
+	timer_count() const
+	{
+		return this->m_timer_count;
+	}
+
 private :
 	//! Type of wheel timer.
 	struct timer_type : public timer_object< THREAD_SAFETY >
@@ -1211,6 +1221,8 @@ public :
 		list_timer->m_status = timer_status::active;
 
 		insert_timer_to_list( list_timer );
+		// Count of timers in the list changed.
+		this->m_timer_count += 1;
 
 		return list_timer == m_head;
 	}
@@ -1227,6 +1239,8 @@ public :
 			// This is normal active timer. It can be safely
 			// deactivated and destroyed.
 			remove_timer_from_list( list_timer );
+			// Count of timers in the list changed.
+			this->m_timer_count -= 1;
 
 			list_timer->m_status = timer_status::deactivated;
 
@@ -1301,7 +1315,19 @@ public :
 			timer_object< THREAD_SAFETY >::decrement_references( t );
 		}
 
+		// There are no more timers in the list.
+		this->m_timer_count = 0;
 		m_tail = nullptr;
+	}
+
+	/*!
+	 * \since v.1.1.1
+	 * \brief Count of timers in the wheel.
+	 */
+	std::size_t
+	timer_count() const
+	{
+		return this->m_timer_count;
 	}
 
 private :
@@ -1343,6 +1369,12 @@ private :
 
 	//! Tail of the list of timers.
 	timer_type * m_tail = nullptr;
+
+	/*!
+	 * \since v.1.1.1
+	 * \brief Count of timers in the list.
+	 */
+	std::size_t m_timer_count = 0;
 	/*!
 	 * \}
 	 */
@@ -1551,6 +1583,7 @@ private :
 			else
 			{
 				// Timer must be utilized.
+				this->m_timer_count -= 1;
 				t->m_status = timer_status::deactivated;
 				timer_object< THREAD_SAFETY >::decrement_references( t );
 			}
@@ -1804,6 +1837,16 @@ public :
 		}
 
 		m_heap.clear();
+	}
+
+	/*!
+	 * \since v.1.1.1
+	 * \brief Count of timers in the wheel.
+	 */
+	std::size_t
+	timer_count() const
+	{
+		return this->m_heap.size();
 	}
 
 private :
@@ -2371,6 +2414,18 @@ public :
 		typename mixin_type::lock_guard locker{ *this };
 
 		m_engine.deactivate( timer );
+	}
+
+	/*!
+	 * \since v.1.1.1
+	 * \brief Count of timers activated.
+	 */
+	std::size_t
+	timer_count()
+	{
+		typename mixin_type::lock_guard locker{ *this };
+
+		return m_engine.timer_count();
 	}
 
 protected :
