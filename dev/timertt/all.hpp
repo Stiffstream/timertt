@@ -391,11 +391,42 @@ typedef std::chrono::steady_clock monotonic_clock;
  */
 using monotonic_clock_t = monotonic_clock;
 
+//
+// timer_quantities
+//
+/*!
+ * \since v.1.1.1
+ * \brief Information about quantities of various timer types.
+ */
+struct timer_quantities
+{
+	//! Quantity of single-shot timers.
+	std::size_t m_single_shot_count = { 0 };
+
+	//! Quantity of periodic timers.
+	std::size_t m_periodic_count = { 0 };
+};
+
 /*!
  * \brief An internal namespace with implementation details.
  */
 namespace details
 {
+
+//
+// timer_kind
+//
+/*!
+ * \since v.1.1.1
+ * \brief Type of the timer (single-shot or periodic).
+ */
+enum class timer_kind
+{
+	//! Timer is a single-shot timer.
+	single_shot,
+	//! Timer is a periodic timer.
+	periodic
+};
 
 //
 // engine_common
@@ -439,12 +470,66 @@ public :
 		,	m_exception_handler( exception_handler )
 	{}
 
+	/*!
+	 * \since v.1.1.1
+	 * \brief Get the quantities of timers of various types.
+	 */
+	timer_quantities
+	get_timer_quantities() const
+	{
+		return this->m_timer_quantities;
+	}
+
 protected :
 	//! Error logger.
 	ERROR_LOGGER m_error_logger;
 
 	//! Exception handler.
 	ACTOR_EXCEPTION_HANDLER m_exception_handler;
+
+	/*!
+	 * \since v.1.1.1
+	 * \brief Quantities of timers of various types.
+	 */
+	timer_quantities m_timer_quantities;
+
+	/*!
+	 * \since v.1.1.1
+	 * \brief Helper method for increment the count of timers of
+	 * the specific type.
+	 */
+	void
+	inc_timer_count( timer_kind kind )
+	{
+		if( timer_kind::single_shot == kind )
+			++m_timer_quantities.m_single_shot_count;
+		else
+			++m_timer_quantities.m_periodic_count;
+	}
+
+	/*!
+	 * \since v.1.1.1
+	 * \brief Helper method for decrement the count of timers of
+	 * the specific type.
+	 */
+	void
+	dec_timer_count( timer_kind kind )
+	{
+		if( timer_kind::single_shot == kind )
+			--m_timer_quantities.m_single_shot_count;
+		else
+			--m_timer_quantities.m_periodic_count;
+	}
+
+	/*!
+	 * \since v.1.1.1
+	 * \brief Helper method for reseting quantities of timers to zero.
+	 */
+	void
+	reset_timer_count()
+	{
+		m_timer_quantities = timer_quantities{};
+	}
 };
 
 //
@@ -589,10 +674,6 @@ public :
 		timer_object< THREAD_SAFETY >::increment_references( wheel_timer );
 		// It is an active timer now.
 		wheel_timer->m_status = timer_status::active;
-		// Count of timers changed.
-		// Assume that there will not be any exception during
-		// insertion of timer to the wheel.
-		this->m_timer_count += 1;
 
 		// Calculate the demand position in the wheel.
 		set_position_in_the_wheel(
@@ -607,9 +688,13 @@ public :
 
 		insert_demand_to_wheel( wheel_timer );
 
+		// Count of timers changed.
+		this->inc_timer_count( wheel_timer->kind() );
+
 		// If wheel was empty and this is the first timer added
 		// the value of timer_count must be exactly 1.
-		return 1 == this->m_timer_count;
+		return 1 == this->m_timer_quantities.m_single_shot_count +
+				this->m_timer_quantities.m_periodic_count;
 	}
 
 	//! Deactivate timer and remove it from the wheel.
@@ -626,7 +711,7 @@ public :
 			wheel_timer->m_status = timer_status::deactivated;
 
 			// Release timer object.
-			this->m_timer_count -= 1;
+			this->dec_timer_count( wheel_timer->kind() );
 			timer_object< THREAD_SAFETY >::decrement_references( wheel_timer );
 		}
 		else if( timer_status::wait_for_execution == wheel_timer->m_status )
@@ -689,7 +774,8 @@ public :
 	bool
 	empty() const
 	{
-		return 0 == this->m_timer_count;
+		return 0 == this->m_timer_quantities.m_single_shot_count &&
+				0 == this->m_timer_quantities.m_periodic_count;
 	}
 
 	/*!
@@ -728,7 +814,7 @@ public :
 		}
 
 		// For the case of timer_engine restart.
-		this->m_timer_count = 0;
+		this->reset_timer_count();
 		this->m_current_tick_border = monotonic_clock::now() + m_granularity;
 		this->m_current_position = 0;
 	}
@@ -763,6 +849,16 @@ private :
 		{
 			m_status = timer_status::deactivated;
 		}
+
+		/*!
+		 * \since v.1.1.1
+		 * \brief Detect type of the timer (single-shot or periodic).
+		 */
+		timer_kind
+		kind() const
+		{
+			return !m_period ? timer_kind::single_shot : timer_kind::periodic;
+		}
 	};
 
 	//! Type of wheel's item.
@@ -786,9 +882,6 @@ private :
 
 	//! Index of the current position in the wheel.
 	unsigned int m_current_position = 0;
-
-	//! Count of timers in the wheel.
-	std::size_t m_timer_count = 0;
 
 	//! Right border of the current tick.
 	/*!
@@ -1060,7 +1153,7 @@ private :
 			{
 				// Timer must be utilized.
 				t->m_status = timer_status::deactivated;
-				this->m_timer_count -= 1;
+				this->dec_timer_count( t->kind() );
 				timer_object< THREAD_SAFETY >::decrement_references( t );
 			}
 		}
@@ -1211,6 +1304,8 @@ public :
 		list_timer->m_status = timer_status::active;
 
 		insert_timer_to_list( list_timer );
+		// Count of timers in the list changed.
+		this->inc_timer_count( list_timer->kind() );
 
 		return list_timer == m_head;
 	}
@@ -1227,6 +1322,8 @@ public :
 			// This is normal active timer. It can be safely
 			// deactivated and destroyed.
 			remove_timer_from_list( list_timer );
+			// Count of timers in the list changed.
+			this->dec_timer_count( list_timer->kind() );
 
 			list_timer->m_status = timer_status::deactivated;
 
@@ -1301,6 +1398,8 @@ public :
 			timer_object< THREAD_SAFETY >::decrement_references( t );
 		}
 
+		// There are no more timers in the list.
+		this->reset_timer_count();
 		m_tail = nullptr;
 	}
 
@@ -1331,6 +1430,17 @@ private :
 		timer_type()
 		{
 			m_status = timer_status::deactivated;
+		}
+
+		/*!
+		 * \since v.1.1.1
+		 * \brief Detect type of timer (single-shot or periodic).
+		 */
+		timer_kind
+		kind() const
+		{
+			return monotonic_clock::duration::zero() == m_period ?
+					timer_kind::single_shot : timer_kind::periodic;
 		}
 	};
 
@@ -1551,6 +1661,7 @@ private :
 			else
 			{
 				// Timer must be utilized.
+				this->dec_timer_count( t->kind() );
 				t->m_status = timer_status::deactivated;
 				timer_object< THREAD_SAFETY >::decrement_references( t );
 			}
@@ -1691,6 +1802,10 @@ public :
 		// Timer will be marked as active during insertion into
 		// heap structure.
 		heap_add( heap_timer );
+
+		// Count of timers must be incremented.
+		this->inc_timer_count( heap_timer->kind() );
+
 		return heap_timer == heap_head();
 	}
 
@@ -1708,6 +1823,9 @@ public :
 			if( heap_timer != m_timer_in_processing )
 			{
 				heap_remove( heap_timer );
+
+				// Count of timers changed.
+				this->dec_timer_count( heap_timer->kind() );
 
 				// We can deactivate timer only after removing.
 				// Because deactivation drops actual timer position.
@@ -1755,6 +1873,9 @@ public :
 			if( m_timer_in_processing->deactivated() ||
 					m_timer_in_processing->single_shot() )
 			{
+				// Count of timers changed.
+				this->dec_timer_count( m_timer_in_processing->kind() );
+
 				m_timer_in_processing->deactivate();
 				timer_object< THREAD_SAFETY >::decrement_references(
 						m_timer_in_processing );
@@ -1803,6 +1924,7 @@ public :
 			timer_object< THREAD_SAFETY >::decrement_references( t );
 		}
 
+		this->reset_timer_count();
 		m_heap.clear();
 	}
 
@@ -1851,6 +1973,17 @@ private :
 		single_shot() const
 		{
 			return monotonic_clock::duration::zero() == m_period;
+		}
+
+		/*!
+		 * \since v.1.1.1
+		 * \brief Detect type of timer (single-shot or periodic).
+		 */
+		timer_kind
+		kind() const
+		{
+			return single_shot() ?
+					timer_kind::single_shot : timer_kind::periodic;
 		}
 	};
 
@@ -2371,6 +2504,21 @@ public :
 		typename mixin_type::lock_guard locker{ *this };
 
 		m_engine.deactivate( timer );
+	}
+
+	/*!
+	 * \since v.1.1.1
+	 * \brief Count of timers of various types.
+	 *
+	 * \note This are quantities of all timers known to manager/thread.
+	 * Some of them can be already deactivated but not removed yet.
+	 */
+	timer_quantities
+	get_timer_quantities()
+	{
+		typename mixin_type::lock_guard locker{ *this };
+
+		return m_engine.get_timer_quantities();
 	}
 
 protected :

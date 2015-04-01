@@ -8,6 +8,12 @@
 
 using namespace std::chrono;
 
+std::size_t
+total_timers( const timertt::timer_quantities & q )
+{
+	return q.m_single_shot_count + q.m_periodic_count;
+}
+
 UT_UNIT_TEST( no_demands )
 {
 	run_with_time_limit(
@@ -16,6 +22,8 @@ UT_UNIT_TEST( no_demands )
 			timer_thread_t tt;
 
 			tt.start();
+
+			UT_CHECK_EQ( 0u, total_timers( tt.get_timer_quantities() ) );
 		},
 		1,
 		"no_demands" );
@@ -414,6 +422,8 @@ UT_UNIT_TEST( shutdown_with_restarts )
 			int events = 0;
 			for( int i = 0; i != 3; ++i )
 			{
+				UT_CHECK_EQ( 0u, total_timers( tt.get_timer_quantities() ) );
+
 				tt.start();
 
 				tt.activate( tt.allocate(), milliseconds( 5 ),
@@ -425,6 +435,7 @@ UT_UNIT_TEST( shutdown_with_restarts )
 				tt.join();
 			}
 
+			UT_CHECK_EQ( 0u, total_timers( tt.get_timer_quantities() ) );
 			UT_CHECK_EQ( events, 3 );
 		},
 		1,
