@@ -1,6 +1,15 @@
 /*!
  * \page timertt_version timertt Version History
  *
+ * \section timertt_version_1_1_1 1.1.1
+ *
+ * New struct timertt::timer_quantities has been added.
+ *
+ * New methods get_timer_quantities() has been added to managers and
+ * timer threads. Please note that get_timer_quantities() returns the count
+ * of timers known to manager/thread. Some of that timers can be already
+ * deactivated but not removed yet.
+ *
  * \section timertt_version_1_1_0 1.1.0
  *
  * A timer_managers have been introduced. They allow use timer inside just one
