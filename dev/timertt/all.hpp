@@ -2370,6 +2370,14 @@ class basic_methods_impl_mixin
 	using timer_holder = timer_object_holder< typename ENGINE::thread_safety >;
 
 public :
+	/*!
+	 * \brief A typedef for thread safety type from ENGINE.
+	 *
+	 * \since
+	 * v.1.1.1
+	 */
+	using thread_safety = typename ENGINE::thread_safety;
+
 	//! Constructor with all parameters.
 	template< typename... ARGS >
 	basic_methods_impl_mixin(
@@ -2791,14 +2799,14 @@ class timer_wheel_thread_template
 	: public
 		details::thread_impl_template<
 				details::timer_wheel_engine<
-						thread_safety::safe,
+						::timertt::thread_safety::safe,
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
 	using base_type =
 			details::thread_impl_template<
 					details::timer_wheel_engine<
-							thread_safety::safe,
+							::timertt::thread_safety::safe,
 							ERROR_LOGGER,
 							ACTOR_EXCEPTION_HANDLER > >;
 
@@ -2962,14 +2970,14 @@ class timer_list_thread_template
 	: public
 		details::thread_impl_template<
 				details::timer_list_engine<
-						thread_safety::safe,
+						::timertt::thread_safety::safe,
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
 	using base_type =
 			details::thread_impl_template<
 					details::timer_list_engine<
-							thread_safety::safe,
+							::timertt::thread_safety::safe,
 							ERROR_LOGGER,
 							ACTOR_EXCEPTION_HANDLER > >;
 
@@ -3078,7 +3086,7 @@ class timer_heap_thread_template
 	: public
 		details::thread_impl_template<
 				details::timer_heap_engine<
-						thread_safety::safe,
+						::timertt::thread_safety::safe,
 						ERROR_LOGGER,
 						ACTOR_EXCEPTION_HANDLER > > 
 {
@@ -3086,7 +3094,7 @@ class timer_heap_thread_template
 	using base_type =
 			details::thread_impl_template<
 					details::timer_heap_engine<
-							thread_safety::safe,
+							::timertt::thread_safety::safe,
 							ERROR_LOGGER,
 							ACTOR_EXCEPTION_HANDLER > >;
 
