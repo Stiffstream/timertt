@@ -24,6 +24,7 @@ UT_UNIT_TEST( no_demands )
 			tt.start();
 
 			UT_CHECK_EQ( 0u, total_timers( tt.get_timer_quantities() ) );
+			UT_CHECK_EQ( true, tt.empty() );
 		},
 		1,
 		"no_demands" );
@@ -58,12 +59,15 @@ UT_UNIT_TEST( single_shot )
 
 			std::string v;
 
+			UT_CHECK_EQ( true, tt.empty() );
 			tt.activate( tt.allocate(),
 					milliseconds( 20 ), [&v]() { v = "hello"; } );
+			UT_CHECK_EQ( false, tt.empty() );
 
 			std::this_thread::sleep_for( milliseconds( 100 ) );
 
 			UT_CHECK_EQ( v, "hello" );
+			UT_CHECK_EQ( true, tt.empty() );
 		},
 		1,
 		"single_shot" );

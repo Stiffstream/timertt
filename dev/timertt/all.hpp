@@ -2593,6 +2593,20 @@ public :
 		return m_engine.get_timer_quantities();
 	}
 
+	/*!
+	 * \brief Check for emptiness.
+	 *
+	 * \since
+	 * v.1.1.3
+	 */
+	bool
+	empty()
+	{
+		typename mixin_type::lock_guard locker{ *this };
+
+		return m_engine.empty();
+	}
+
 protected :
 	//! Actual timer engine instance.
 	ENGINE m_engine;
