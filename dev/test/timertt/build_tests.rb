@@ -14,11 +14,14 @@ MxxRu::Cpp::composite_target {
 
 
 	required_prj 'test/timertt/basic_checks/timer_wheel.ut.rb'
+	required_prj 'test/timertt/basic_checks_no_default_ctor/timer_wheel.ut.rb'
 	required_prj 'test/timertt/timer_wheel/prj.ut.rb'
 
 	required_prj 'test/timertt/basic_checks/timer_list.ut.rb'
+	required_prj 'test/timertt/basic_checks_no_default_ctor/timer_list.ut.rb'
 
 	required_prj 'test/timertt/basic_checks/timer_heap.ut.rb'
+	required_prj 'test/timertt/basic_checks_no_default_ctor/timer_heap.ut.rb'
 	required_prj 'test/timertt/timer_heap/prj.ut.rb'
 
 	required_prj 'test/timertt/schedule_erase_benchmark/prj.rb'
