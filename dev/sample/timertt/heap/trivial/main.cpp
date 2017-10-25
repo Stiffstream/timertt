@@ -14,6 +14,7 @@ using namespace timertt;
 int main()
 {
 	using timer_heap_thread_t = timer_heap_thread_template<
+		default_timer_action_type,
 		default_error_logger,
 		default_actor_exception_handler >;
 

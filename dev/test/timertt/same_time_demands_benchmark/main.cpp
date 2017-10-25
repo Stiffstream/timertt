@@ -85,15 +85,15 @@ do_benchmark( const cfg_t cfg )
 
 	benchmarker_t benchmarker;
 
-	timertt::timer_action first = [&]() {
+	timertt::default_timer_action_type first = [&]() {
 			std::lock_guard< std::mutex > l( mutex );
 			benchmarker.start();
 			++counter;
 		};
-	timertt::timer_action common = [&counter]() {
+	timertt::default_timer_action_type common = [&counter]() {
 			++counter;
 		};
-	timertt::timer_action last = [&]() {
+	timertt::default_timer_action_type last = [&]() {
 			++counter;
 			benchmarker.finish_and_show_stats( counter, "invocations" );
 
@@ -122,12 +122,15 @@ int main( int argc, char ** argv )
 		cfg_t cfg = parse_args( argc, argv );
 
 		using timer_heap_thread_t = timertt::timer_heap_thread_template<
+			timertt::default_timer_action_type,
 			timertt::default_error_logger,
 			timertt::default_actor_exception_handler >;
 		using timer_wheel_thread_t = timertt::timer_wheel_thread_template<
+			timertt::default_timer_action_type,
 			timertt::default_error_logger,
 			timertt::default_actor_exception_handler >;
 		using timer_list_thread_t = timertt::timer_list_thread_template<
+			timertt::default_timer_action_type,
 			timertt::default_error_logger,
 			timertt::default_actor_exception_handler >;
 

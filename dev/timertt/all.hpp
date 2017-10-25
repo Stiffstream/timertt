@@ -358,12 +358,15 @@ struct default_actor_exception_handler
 };
 
 //
-// timer_action
+// default_timer_action_type
 //
 /*!
- * \brief Type of timer action.
+ * \brief Defaulf type of timer action.
+ *
+ * \since
+ * v.1.2.0
  */
-typedef std::function< void() > timer_action;
+typedef std::function< void() > default_timer_action_type;
 
 //
 // monotonic_clock
@@ -418,6 +421,8 @@ enum class timer_kind
 // engine_common
 //
 
+//FIXME: describe Timer_Action parameter.
+
 /*!
  * \brief A common part for all timer engines.
  *
@@ -442,6 +447,7 @@ enum class timer_kind
  */
 template<
 	typename Thread_Safety,
+	typename Timer_Action,
 	typename Error_Logger,
 	typename Actor_Exception_Handler >
 class engine_common
@@ -449,6 +455,9 @@ class engine_common
 public :
 	//! Indicator of thread-safety.
 	using thread_safety = Thread_Safety;
+
+	//! Alias for Timer_Action.
+	using timer_action = Timer_Action;
 
 	//! Initializing constructor.
 	engine_common(
@@ -555,6 +564,8 @@ struct timer_wheel_engine_defaults
 // timer_wheel_engine
 //
 
+//FIXME: describe Timer_Action parameter.
+
 /*!
  * \brief A engine for timer wheel mechanism.
  *
@@ -594,19 +605,23 @@ struct timer_wheel_engine_defaults
  */
 template<
 	typename Thread_Safety,
+	typename Timer_Action,
 	typename Error_Logger,
 	typename Actor_Exception_Handler >
 class timer_wheel_engine
 	:	public engine_common<
-			Thread_Safety, Error_Logger, Actor_Exception_Handler >
+			Thread_Safety, Timer_Action, Error_Logger, Actor_Exception_Handler >
 {
 	//! An alias for base class.
 	using base_type = engine_common<
-			Thread_Safety, Error_Logger, Actor_Exception_Handler >;
+			Thread_Safety, Timer_Action, Error_Logger, Actor_Exception_Handler >;
 
 public :
 	//! Type with default parameters for this engine.
-	typedef timer_wheel_engine_defaults defaults_type;
+	using defaults_type = timer_wheel_engine_defaults;
+
+	//! Alias for timer_action type.
+	using timer_action = typename base_type::timer_action;	
 
 	//! Constructor with all parameters.
 	timer_wheel_engine(
@@ -1184,6 +1199,9 @@ struct timer_list_engine_defaults
 //
 // timer_list_engine
 //
+
+//FIXME: describe Timer_Action parameter.
+
 /*!
  * \brief An engine for timer list mechanism.
  *
@@ -1225,19 +1243,23 @@ struct timer_list_engine_defaults
  */
 template<
 	typename Thread_Safety,
+	typename Time_Action,
 	typename Error_Logger,
 	typename Actor_Exception_Handler >
 class timer_list_engine
 	:	public engine_common<
-			Thread_Safety, Error_Logger, Actor_Exception_Handler >
+			Thread_Safety, Time_Action, Error_Logger, Actor_Exception_Handler >
 {
 	//! An alias for base class.
 	using base_type = engine_common<
-			Thread_Safety, Error_Logger, Actor_Exception_Handler >;
+			Thread_Safety, Time_Action, Error_Logger, Actor_Exception_Handler >;
 
 public :
 	//! Type with default parameters for this engine.
 	typedef timer_list_engine_defaults defaults_type;
+
+	//! Alias for timer_action type.
+	using timer_action = typename base_type::timer_action;	
 
 	//! Default constructor.
 	timer_list_engine()
@@ -1696,6 +1718,8 @@ struct timer_heap_engine_defaults
 // timer_heap_engine
 //
 
+//FIXME: describe Timer_Action parameter.
+
 /*!
  * \brief An engine for timer heap mechanism.
  *
@@ -1731,19 +1755,23 @@ struct timer_heap_engine_defaults
  */
 template<
 	typename Thread_Safety,
+	typename Timer_Action,
 	typename Error_Logger,
 	typename Actor_Exception_Handler >
 class timer_heap_engine
 	:	public engine_common<
-			Thread_Safety, Error_Logger, Actor_Exception_Handler >
+			Thread_Safety, Timer_Action, Error_Logger, Actor_Exception_Handler >
 {
 	//! An alias for base class.
 	using base_type = engine_common<
-			Thread_Safety, Error_Logger, Actor_Exception_Handler >;
+			Thread_Safety, Timer_Action, Error_Logger, Actor_Exception_Handler >;
 
 public :
 	//! Type with default parameters for this engine.
 	typedef timer_heap_engine_defaults defaults_type;
+
+	//! Alias for timer_action type.
+	using timer_action = typename base_type::timer_action;	
 
 	//! Constructor with all parameters.
 	timer_heap_engine(
@@ -2410,6 +2438,9 @@ public :
 	 */
 	using thread_safety = typename Engine::thread_safety;
 
+	//! An alias for timer_action type.
+	using timer_action = typename Engine::timer_action;
+
 	//! Constructor with all parameters.
 	template< typename... Args >
 	basic_methods_impl_mixin(
@@ -2830,6 +2861,8 @@ protected :
 // timer_wheel_thread_template
 //
 
+//FIXME: describe Timer_Action parameter.
+
 /*!
  * \brief A timer wheel thread template.
  *
@@ -2845,6 +2878,7 @@ protected :
  * is defined by default_actor_exception_handler.
  */
 template<
+	typename Timer_Action,
 	typename Error_Logger,
 	typename Actor_Exception_Handler >
 class timer_wheel_thread_template
@@ -2852,6 +2886,7 @@ class timer_wheel_thread_template
 		details::thread_impl_template<
 				details::timer_wheel_engine<
 						::timertt::thread_safety::safe,
+						Timer_Action,
 						Error_Logger,
 						Actor_Exception_Handler > > 
 {
@@ -2859,6 +2894,7 @@ class timer_wheel_thread_template
 			details::thread_impl_template<
 					details::timer_wheel_engine<
 							::timertt::thread_safety::safe,
+							Timer_Action,
 							Error_Logger,
 							Actor_Exception_Handler > >;
 
@@ -2906,6 +2942,9 @@ public :
 //
 // timer_wheel_manager_template
 //
+
+//FIXME: describe Timer_Action parameter.
+
 /*!
  * \brief A timer wheel manager template.
  *
@@ -2928,6 +2967,7 @@ public :
  */
 template<
 	typename Thread_Safety,
+	typename Timer_Action = default_timer_action_type,
 	typename Error_Logger = default_error_logger,
 	typename Actor_Exception_Handler = default_actor_exception_handler >
 class timer_wheel_manager_template
@@ -2935,6 +2975,7 @@ class timer_wheel_manager_template
 		details::manager_impl_template<
 				details::timer_wheel_engine<
 						Thread_Safety,
+						Timer_Action,
 						Error_Logger,
 						Actor_Exception_Handler > > 
 {
@@ -2943,6 +2984,7 @@ class timer_wheel_manager_template
 			details::manager_impl_template<
 					details::timer_wheel_engine<
 							Thread_Safety,
+							Timer_Action,
 							Error_Logger,
 							Actor_Exception_Handler > >;
 
@@ -2991,6 +3033,8 @@ public :
 // timer_list_thread_template
 //
 
+//FIXME: describe Timer_Action parameter.
+
 /*!
  * \brief A timer list thread template.
  *
@@ -3006,6 +3050,7 @@ public :
  * is defined by default_actor_exception_handler.
  */
 template<
+	typename Timer_Action,
 	typename Error_Logger,
 	typename Actor_Exception_Handler >
 class timer_list_thread_template
@@ -3013,6 +3058,7 @@ class timer_list_thread_template
 		details::thread_impl_template<
 				details::timer_list_engine<
 						::timertt::thread_safety::safe,
+						Timer_Action,
 						Error_Logger,
 						Actor_Exception_Handler > > 
 {
@@ -3020,6 +3066,7 @@ class timer_list_thread_template
 			details::thread_impl_template<
 					details::timer_list_engine<
 							::timertt::thread_safety::safe,
+							Timer_Action,
 							Error_Logger,
 							Actor_Exception_Handler > >;
 
@@ -3040,6 +3087,9 @@ public :
 //
 // timer_list_manager_template
 //
+
+//FIXME: describe Timer_Action parameter.
+
 /*!
  * \brief A timer list thread template.
  *
@@ -3062,6 +3112,7 @@ public :
  */
 template<
 	typename Thread_Safety,
+	typename Timer_Action = default_timer_action_type,
 	typename Error_Logger = default_error_logger,
 	typename Actor_Exception_Handler = default_actor_exception_handler >
 class timer_list_manager_template
@@ -3069,6 +3120,7 @@ class timer_list_manager_template
 		details::manager_impl_template<
 				details::timer_list_engine<
 						Thread_Safety,
+						Timer_Action,
 						Error_Logger,
 						Actor_Exception_Handler > > 
 {
@@ -3076,6 +3128,7 @@ class timer_list_manager_template
 			details::manager_impl_template<
 					details::timer_list_engine<
 							Thread_Safety,
+							Timer_Action,
 							Error_Logger,
 							Actor_Exception_Handler > >;
 
@@ -3097,6 +3150,8 @@ public :
 // timer_heap_thread_template
 //
 
+//FIXME: describe Timer_Action parameter.
+
 /*!
  * \brief A timer heap thread template.
  *
@@ -3112,6 +3167,7 @@ public :
  * is defined by default_actor_exception_handler.
  */
 template<
+	typename Timer_Action,
 	typename Error_Logger,
 	typename Actor_Exception_Handler >
 class timer_heap_thread_template
@@ -3119,6 +3175,7 @@ class timer_heap_thread_template
 		details::thread_impl_template<
 				details::timer_heap_engine<
 						::timertt::thread_safety::safe,
+						Timer_Action,
 						Error_Logger,
 						Actor_Exception_Handler > > 
 {
@@ -3127,6 +3184,7 @@ class timer_heap_thread_template
 			details::thread_impl_template<
 					details::timer_heap_engine<
 							::timertt::thread_safety::safe,
+							Timer_Action,
 							Error_Logger,
 							Actor_Exception_Handler > >;
 
@@ -3171,6 +3229,8 @@ public :
 //
 // timer_heap_manager_template
 //
+
+//FIXME: describe Timer_Action parameter.
 /*!
  * \brief A timer heap manager template.
  *
@@ -3190,6 +3250,7 @@ public :
  */
 template<
 	typename Thread_Safety,
+	typename Timer_Action = default_timer_action_type,
 	typename Error_Logger = default_error_logger,
 	typename Actor_Exception_Handler = default_actor_exception_handler >
 class timer_heap_manager_template
@@ -3197,6 +3258,7 @@ class timer_heap_manager_template
 		details::manager_impl_template<
 				details::timer_heap_engine<
 						Thread_Safety,
+						Timer_Action,
 						Error_Logger,
 						Actor_Exception_Handler > > 
 {
@@ -3205,6 +3267,7 @@ class timer_heap_manager_template
 		details::manager_impl_template<
 				details::timer_heap_engine<
 						Thread_Safety,
+						Timer_Action,
 						Error_Logger,
 						Actor_Exception_Handler > >;
 

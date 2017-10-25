@@ -83,9 +83,12 @@ create_durations( const cfg_t & cfg )
 	return result;
 }
 
-void do_nothing()
+struct noop_action
 {
-}
+	void operator()() {}
+};
+
+using timer_action_type = noop_action;
 
 using timer_holder_t = timertt::timer_object_holder<timertt::thread_safety::safe>;
 
@@ -94,7 +97,7 @@ std::vector< timer_holder_t >
 create_timers(
 	const cfg_t & cfg,
 	TIMER_THREAD & tt,
-	timertt::timer_action actor )
+	timer_action_type actor )
 {
 	std::vector< milliseconds > durations = create_durations( cfg );
 
@@ -153,8 +156,7 @@ do_benchmark(
 	TIMER_THREAD tt;
 	tt.start();
 
-	auto timer_ids = create_timers( cfg, tt,
-			timertt::timer_action( &do_nothing ) );
+	auto timer_ids = create_timers( cfg, tt, noop_action() );
 
 	erase_demands( tt, timer_ids );
 
@@ -168,12 +170,15 @@ int main( int argc, char ** argv )
 		cfg_t cfg = parse_args( argc, argv );
 
 		using timer_heap_thread_t = timertt::timer_heap_thread_template<
+			timer_action_type,
 			timertt::default_error_logger,
 			timertt::default_actor_exception_handler >;
 		using timer_wheel_thread_t = timertt::timer_wheel_thread_template<
+			timer_action_type,
 			timertt::default_error_logger,
 			timertt::default_actor_exception_handler >;
 		using timer_list_thread_t = timertt::timer_list_thread_template<
+			timer_action_type,
 			timertt::default_error_logger,
 			timertt::default_actor_exception_handler >;
 

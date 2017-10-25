@@ -27,8 +27,9 @@ int main()
 
 	// Custom timer thread.
 	timer_list_thread_template<
-					function< void(const string &) >,
-					decltype(handler) >
+					void (*)(), // Type of timer action.
+					function< void(const string &) >, // Type of logger.
+					decltype(handler) > // Type of exception handler.
 			tt{ bind( log_error, &cout, _1 ), handler };
 
 	// Timer thread must be started before activation of timers.
