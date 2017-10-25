@@ -400,6 +400,131 @@ struct timer_quantities
 namespace details
 {
 
+//FIXME: document this!
+//
+// buffer_allocated_object
+//
+/*!
+ * \since
+ * v.1.2.0
+ */
+template<typename T>
+class buffer_allocated_object
+{
+	alignas(T) std::array<char, sizeof(T)> buffer_;
+	bool allocated_{ false };
+
+	void destroy_if_allocated()
+	{
+		if(allocated_)
+		{
+			get()->~T();
+			allocated_ = false;
+		}
+	}
+
+public :
+	using pointer = T*;
+	using element_type = T;
+	using reference = typename std::add_lvalue_reference<T>::type;
+
+	buffer_allocated_object() noexcept = default;
+	buffer_allocated_object(const buffer_allocated_object &) = delete;
+	buffer_allocated_object(buffer_allocated_object &&) = delete;
+
+	~buffer_allocated_object()
+	{
+		destroy_if_allocated();
+	}
+
+	template<typename... Args>
+	void allocate(Args &&...args)
+	{
+		destroy_if_allocated();
+		new(buffer_.data()) T(std::forward<Args>(args)...);
+		allocated_ = true;
+	}
+
+	void destroy()
+	{
+		destroy_if_allocated();
+	}
+
+	operator bool() const noexcept
+	{
+		return allocated_;
+	}
+
+	pointer get() const noexcept
+	{
+		return reinterpret_cast<pointer>(const_cast<char *>(buffer_.data()));
+	}
+
+	pointer operator->() const noexcept
+	{
+		return get();
+	}
+
+	reference operator*() const noexcept
+	{
+		return *get();
+	}
+};
+
+//FIXME: document this!
+//
+// timer_action_holder
+//
+/*!
+ * \since
+ * v.1.2.0
+ */
+template< typename Action_Type >
+class timer_action_holder
+{
+	buffer_allocated_object<Action_Type> m_action;
+
+public:
+	timer_action_holder() = default;
+	timer_action_holder( const timer_action_holder & ) = delete;
+	timer_action_holder( timer_action_holder && ) = delete;
+
+	void
+	assign( Action_Type && action )
+	{
+		m_action.allocate( std::move(action) );
+	}
+
+	void
+	exec() const
+	{
+		(*m_action)();
+	}
+};
+
+template<>
+class timer_action_holder< default_timer_action_type >
+{
+	default_timer_action_type m_action;
+
+public :
+	timer_action_holder() = default;
+	timer_action_holder( const timer_action_holder & ) = delete;
+	timer_action_holder( timer_action_holder && ) = delete;
+
+	void
+	assign( default_timer_action_type && action )
+	{
+		m_action = std::move(action);
+	}
+
+	void
+	exec() const
+	{
+		m_action();
+	}
+};
+
 //
 // timer_kind
 //
@@ -683,7 +808,7 @@ public :
 		auto * wheel_timer = timer.template cast_to< timer_type >();
 		ensure_timer_deactivated( wheel_timer );
 
-		wheel_timer->m_action = std::move(action);
+		wheel_timer->m_action.assign( std::move(action) );
 
 		// Timer must be taken under control.
 		timer_object< Thread_Safety >::increment_references( wheel_timer );
@@ -853,7 +978,7 @@ private :
 		unsigned int m_period = 0;
 
 		//! Timer action.
-		timer_action m_action;
+		timer_action_holder< timer_action > m_action;
 
 		//! Previous demand in the list.
 		timer_type * m_prev = nullptr;
@@ -1116,7 +1241,7 @@ private :
 				// just before execution. If timer is waiting for
 				// deregistration it must not be executed.
 				if( timer_status::wait_for_execution == head->m_status )
-					head->m_action();
+					head->m_action.exec();
 			}
 			catch( const std::exception & x )
 			{
@@ -1319,7 +1444,7 @@ public :
 		ensure_timer_deactivated( list_timer );
 
 		// Timer object must be correctly (re)initialized.
-		list_timer->m_action = std::move( action );
+		list_timer->m_action.assign( std::move( action ) );
 		list_timer->m_when = monotonic_clock::now() + pause;
 		list_timer->m_period = std::chrono::duration_cast<
 				monotonic_clock::duration >( period );
@@ -1446,7 +1571,7 @@ private :
 		monotonic_clock::duration m_period;
 
 		//! Timer action.
-		timer_action m_action;
+		timer_action_holder< timer_action > m_action;
 
 		//! Previous demand in the list.
 		timer_type * m_prev = nullptr;
@@ -1638,7 +1763,7 @@ private :
 				// just before execution. If timer is waiting for
 				// deregistration it must not be executed.
 				if( timer_status::wait_for_execution == head->m_status )
-					head->m_action();
+					head->m_action.exec();
 			}
 			catch( const std::exception & x )
 			{
@@ -1827,7 +1952,7 @@ public :
 		ensure_timer_deactivated( heap_timer );
 
 		// Timer object must be correctly (re)initialized.
-		heap_timer->m_action = std::move( action );
+		heap_timer->m_action.assign( std::move( action ) );
 		heap_timer->m_when = monotonic_clock::now() + pause;
 		heap_timer->m_period = std::chrono::duration_cast<
 				monotonic_clock::duration >( period );
@@ -1985,7 +2110,7 @@ private :
 		monotonic_clock::duration m_period;
 
 		//! Timer action.
-		timer_action m_action;
+		timer_action_holder< timer_action > m_action;
 
 		//! Position in the heap-array.
 		std::size_t m_position = deactivation_indicator;
@@ -2063,7 +2188,7 @@ private :
 
 		try
 		{
-			m_timer_in_processing->m_action();
+			m_timer_in_processing->m_action.exec();
 		}
 		catch( const std::exception & x )
 		{
