@@ -176,16 +176,6 @@ struct timer_object
 };
 
 //
-// timer_t
-//
-/*!
- * \brief Base type for timer demands in multithreading mode.
- *
- * \note For compatibility with version 1.0.
- */
-typedef timer_object< thread_safety::safe > timer_t;
-
-//
 // timer_object_holder
 //
 /*!
@@ -326,16 +316,6 @@ private :
 };
 
 //
-// timer_holder_t
-//
-/*!
- * \brief An intrusive smart pointer to timer demand in multithreading mode.
- *
- * \note For compatibility with version 1.0.
- */
-typedef timer_object_holder< thread_safety::safe > timer_holder_t;
-
-//
 // default_error_logger
 //
 
@@ -385,11 +365,6 @@ struct default_actor_exception_handler
  */
 typedef std::function< void() > timer_action;
 
-/*!
- * \brief Alias for compatibility with previous versions.
- */
-using timer_action_t = timer_action;
-
 //
 // monotonic_clock
 //
@@ -397,11 +372,6 @@ using timer_action_t = timer_action;
  * \brief Type of clock used by all threads.
  */
 typedef std::chrono::steady_clock monotonic_clock;
-
-/*!
- * \brief Alias for compatibility with previous versions.
- */
-using monotonic_clock_t = monotonic_clock;
 
 //
 // timer_quantities
@@ -2934,18 +2904,6 @@ public :
 };
 
 //
-// timer_wheel_thread_t
-//
-
-//! An alias for default timer_wheel thread implementation.
-/*!
- * \note For compatibility with previous version.
- */
-using timer_wheel_thread_t = timer_wheel_thread_template<
-		default_error_logger,
-		default_actor_exception_handler >;
-
-//
 // timer_wheel_manager_template
 //
 /*!
@@ -3080,18 +3038,6 @@ public :
 };
 
 //
-// timer_list_thread_t
-//
-
-//! An alias for default timer_list thread implementation.
-/*!
- * \note For compatibility with previous versions.
- */
-using timer_list_thread_t = timer_list_thread_template<
-		default_error_logger,
-		default_actor_exception_handler >;
-
-//
 // timer_list_manager_template
 //
 /*!
@@ -3221,18 +3167,6 @@ public :
 				exception_handler )
 	{}
 };
-
-//
-// timer_heap_thread_t
-//
-
-//! An alias for default timer_list thread implementation.
-/*!
- * \note For compatibility with previous versions.
- */
-using timer_heap_thread_t = timer_heap_thread_template<
-		default_error_logger,
-		default_actor_exception_handler >;
 
 //
 // timer_heap_manager_template

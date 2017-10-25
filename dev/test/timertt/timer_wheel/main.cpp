@@ -6,7 +6,9 @@
 
 using namespace std::chrono;
 
-typedef timertt::timer_wheel_thread_t timer_thread_t;
+using timer_thread_t = timertt::timer_wheel_thread_template<
+	timertt::default_error_logger,
+	timertt::default_actor_exception_handler >;
 
 UT_UNIT_TEST( several_full_rolls )
 {

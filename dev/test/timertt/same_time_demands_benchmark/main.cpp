@@ -9,8 +9,6 @@
 
 using namespace std::chrono;
 
-typedef timertt::timer_wheel_thread_t timer_thread_t;
-
 struct cfg_t
 {
 	unsigned int m_demand_count = 0;
@@ -87,15 +85,15 @@ do_benchmark( const cfg_t cfg )
 
 	benchmarker_t benchmarker;
 
-	timertt::timer_action_t first = [&]() {
+	timertt::timer_action first = [&]() {
 			std::lock_guard< std::mutex > l( mutex );
 			benchmarker.start();
 			++counter;
 		};
-	timertt::timer_action_t common = [&counter]() {
+	timertt::timer_action common = [&counter]() {
 			++counter;
 		};
-	timertt::timer_action_t last = [&]() {
+	timertt::timer_action last = [&]() {
 			++counter;
 			benchmarker.finish_and_show_stats( counter, "invocations" );
 
@@ -123,17 +121,27 @@ int main( int argc, char ** argv )
 	{
 		cfg_t cfg = parse_args( argc, argv );
 
+		using timer_heap_thread_t = timertt::timer_heap_thread_template<
+			timertt::default_error_logger,
+			timertt::default_actor_exception_handler >;
+		using timer_wheel_thread_t = timertt::timer_wheel_thread_template<
+			timertt::default_error_logger,
+			timertt::default_actor_exception_handler >;
+		using timer_list_thread_t = timertt::timer_list_thread_template<
+			timertt::default_error_logger,
+			timertt::default_actor_exception_handler >;
+
 		{
 			std::cout << "Benchmark for timer_list..." << std::endl;
-			do_benchmark< timertt::timer_list_thread_t >( cfg );
+			do_benchmark< timer_list_thread_t >( cfg );
 		}
 		{
 			std::cout << "\n" "Benchmark for timer_wheel..." << std::endl;
-			do_benchmark< timertt::timer_wheel_thread_t >( cfg );
+			do_benchmark< timer_wheel_thread_t >( cfg );
 		}
 		{
 			std::cout << "\n" "Benchmark for timer_heap..." << std::endl;
-			do_benchmark< timertt::timer_heap_thread_t >( cfg );
+			do_benchmark< timer_heap_thread_t >( cfg );
 		}
 	}
 	catch( const std::exception & x )

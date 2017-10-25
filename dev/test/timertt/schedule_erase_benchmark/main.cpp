@@ -87,16 +87,18 @@ void do_nothing()
 {
 }
 
+using timer_holder_t = timertt::timer_object_holder<timertt::thread_safety::safe>;
+
 template< class TIMER_THREAD >
-std::vector< timertt::timer_holder_t >
+std::vector< timer_holder_t >
 create_timers(
 	const cfg_t & cfg,
 	TIMER_THREAD & tt,
-	timertt::timer_action_t actor )
+	timertt::timer_action actor )
 {
 	std::vector< milliseconds > durations = create_durations( cfg );
 
-	std::vector< timertt::timer_holder_t > result;
+	std::vector< timer_holder_t > result;
 	result.reserve( cfg.m_demand_count );
 
 	std::cout << "Scheduling demands..." << std::endl;
@@ -120,7 +122,7 @@ create_timers(
 template< class TIMER_THREAD >
 void
 erase_demands( TIMER_THREAD & tt,
-	std::vector< timertt::timer_holder_t > & timer_ids )
+	std::vector< timer_holder_t > & timer_ids )
 {
 	std::cout << "Shuffling timer ids..." << std::endl;
 	std::shuffle( timer_ids.begin(), timer_ids.end(),
@@ -152,7 +154,7 @@ do_benchmark(
 	tt.start();
 
 	auto timer_ids = create_timers( cfg, tt,
-			timertt::timer_action_t( &do_nothing ) );
+			timertt::timer_action( &do_nothing ) );
 
 	erase_demands( tt, timer_ids );
 
@@ -165,13 +167,23 @@ int main( int argc, char ** argv )
 	{
 		cfg_t cfg = parse_args( argc, argv );
 
-		do_benchmark< timertt::timer_list_thread_t >(
+		using timer_heap_thread_t = timertt::timer_heap_thread_template<
+			timertt::default_error_logger,
+			timertt::default_actor_exception_handler >;
+		using timer_wheel_thread_t = timertt::timer_wheel_thread_template<
+			timertt::default_error_logger,
+			timertt::default_actor_exception_handler >;
+		using timer_list_thread_t = timertt::timer_list_thread_template<
+			timertt::default_error_logger,
+			timertt::default_actor_exception_handler >;
+
+		do_benchmark< timer_list_thread_t >(
 				cfg, "timer_list" );
 
-		do_benchmark< timertt::timer_wheel_thread_t >(
+		do_benchmark< timer_wheel_thread_t >(
 				cfg, "timer_wheel" );
 
-		do_benchmark< timertt::timer_heap_thread_t >(
+		do_benchmark< timer_heap_thread_t >(
 				cfg, "timer_heap" );
 	}
 	catch( const std::exception & x )
