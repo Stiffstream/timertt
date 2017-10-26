@@ -33,6 +33,33 @@ UT_UNIT_TEST( single_shot )
 		"single_shot" );
 }
 
+UT_UNIT_TEST( single_shot_preallocated )
+{
+	run_with_time_limit(
+		[]()
+		{
+			timer_thread_t tt;
+
+			tt.start();
+
+			std::string v;
+
+			UT_CHECK_EQ( true, tt.empty() );
+
+			timer_thread_t::preallocated_timer_object timer;
+			tt.activate( timer,
+					milliseconds( 20 ), test_action(v, "hello") );
+			UT_CHECK_EQ( false, tt.empty() );
+
+			std::this_thread::sleep_for( milliseconds( 100 ) );
+
+			UT_CHECK_EQ( v, "hello" );
+			UT_CHECK_EQ( true, tt.empty() );
+		},
+		1,
+		"single_shot_preallocated" );
+}
+
 UT_UNIT_TEST( several_single_shots )
 {
 	run_with_time_limit(
@@ -102,6 +129,7 @@ UT_UNIT_TEST( anonymous_timers )
 int main()
 {
 	UT_RUN_UNIT_TEST( single_shot )
+	UT_RUN_UNIT_TEST( single_shot_preallocated )
 	UT_RUN_UNIT_TEST( several_single_shots )
 	UT_RUN_UNIT_TEST( anonymous_timers )
 }

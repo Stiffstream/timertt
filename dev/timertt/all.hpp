@@ -1442,12 +1442,19 @@ class timer_list_engine
 	using base_type = engine_common<
 			Thread_Safety, Time_Action, Error_Logger, Actor_Exception_Handler >;
 
+	// Forward declaration.
+	struct timer_type;
+
 public :
 	//! Type with default parameters for this engine.
 	typedef timer_list_engine_defaults defaults_type;
 
 	//! Alias for timer_action type.
 	using timer_action = typename base_type::timer_action;	
+
+	//! Alias for preallocated timer object.
+	using preallocated_timer_object =
+			preallocated_timer_object_holder< timer_type >;
 
 	//! Default constructor.
 	timer_list_engine()
@@ -1956,12 +1963,19 @@ class timer_heap_engine
 	using base_type = engine_common<
 			Thread_Safety, Timer_Action, Error_Logger, Actor_Exception_Handler >;
 
+	// Forward declaration.
+	struct timer_type;
+
 public :
 	//! Type with default parameters for this engine.
 	typedef timer_heap_engine_defaults defaults_type;
 
 	//! Alias for timer_action type.
 	using timer_action = typename base_type::timer_action;	
+
+	//! Alias for preallocated timer object.
+	using preallocated_timer_object =
+			preallocated_timer_object_holder< timer_type >;
 
 	//! Constructor with all parameters.
 	timer_heap_engine(
