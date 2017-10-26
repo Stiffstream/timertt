@@ -177,6 +177,36 @@ struct timer_object
 };
 
 //
+// preallocated_timer_object_holder
+//
+//FIXME: document this!
+/*!
+ *
+ * \note
+ * This type is not Copyable nor Moveable.
+ * \since
+ * v.1.2.0
+ */
+template< typename Actual_Object >
+class preallocated_timer_object_holder
+{
+	Actual_Object m_object;
+
+public :
+	preallocated_timer_object_holder()
+	{
+		// Actual object must have yet another reference to prevent its deletion.
+		Actual_Object::increment_references( &m_object );
+	}
+
+	preallocated_timer_object_holder( const preallocated_timer_object_holder & ) = delete;
+	preallocated_timer_object_holder( preallocated_timer_object_holder && ) = delete;
+
+	Actual_Object *
+	ptr() { return &m_object; }
+};
+
+//
 // timer_object_holder
 //
 /*!
@@ -214,6 +244,13 @@ public :
 	{
 		o.m_timer = nullptr;
 	}
+
+	//! Constructor for the case when timer object is preallocated.
+	template< typename Actual_Object >
+	inline timer_object_holder(
+		preallocated_timer_object_holder<Actual_Object> & preallocated )
+		:	timer_object_holder( preallocated.ptr() )
+	{}
 
 	//! Destructor.
 	inline ~timer_object_holder()
@@ -316,6 +353,7 @@ private :
 	}
 };
 
+
 //
 // default_error_logger
 //
@@ -401,11 +439,16 @@ struct timer_quantities
 namespace details
 {
 
-//FIXME: document this!
 //
 // buffer_allocated_object
 //
 /*!
+ * \brief A special storage to be used for holding non-default constructible
+ * objects which are created by demand.
+ *
+ * \note
+ * In C++17 std::optional can be used instead of this class.
+ *
  * \since
  * v.1.2.0
  */
@@ -472,11 +515,18 @@ public :
 	}
 };
 
-//FIXME: document this!
 //
 // timer_action_holder
 //
 /*!
+ * \brief A special storage for holding timer actions.
+ *
+ * If a timer action is represented by std::function<void()> then
+ * a simple std::function can be used for holding this timer action.
+ * But if a timer action is represented by some user type then
+ * we must use a internal buffer and should construct timer action
+ * instance inplace only when it is necessary.
+ *
  * \since
  * v.1.2.0
  */
@@ -547,8 +597,6 @@ enum class timer_kind
 // engine_common
 //
 
-//FIXME: describe Timer_Action parameter.
-
 /*!
  * \brief A common part for all timer engines.
  *
@@ -559,6 +607,10 @@ enum class timer_kind
  *
  * \tparam Thread_Safety Thread-safety indicator.
  * Must be timertt::thread_safety::unsafe or timertt::thread_safety::safe.
+ *
+ * \tparam Timer_Action type of functor to perform an user-defined
+ * action when timer expires. This must be Moveable and MoveConstructible
+ * type.
  *
  * \tparam Error_Logger type of logger for errors detected during
  * timer handling. Interface for error logger is defined
@@ -690,8 +742,6 @@ struct timer_wheel_engine_defaults
 // timer_wheel_engine
 //
 
-//FIXME: describe Timer_Action parameter.
-
 /*!
  * \brief A engine for timer wheel mechanism.
  *
@@ -721,6 +771,10 @@ struct timer_wheel_engine_defaults
  * \tparam Thread_Safety Thread-safety indicator.
  * Must be timertt::thread_safety::unsafe or timertt::thread_safety::safe.
  *
+ * \tparam Timer_Action type of functor to perform an user-defined
+ * action when timer expires. This must be Moveable and MoveConstructible
+ * type.
+ *
  * \tparam Error_Logger type of logger for errors detected during
  * timer thread execution. Interface for error logger is defined
  * by default_error_logger class.
@@ -742,12 +796,18 @@ class timer_wheel_engine
 	using base_type = engine_common<
 			Thread_Safety, Timer_Action, Error_Logger, Actor_Exception_Handler >;
 
+	struct timer_type;
+
 public :
 	//! Type with default parameters for this engine.
 	using defaults_type = timer_wheel_engine_defaults;
 
 	//! Alias for timer_action type.
 	using timer_action = typename base_type::timer_action;	
+
+	//! Alias for preallocated timer object.
+	using preallocated_timer_object =
+			preallocated_timer_object_holder< timer_type >;
 
 	//! Constructor with all parameters.
 	timer_wheel_engine(
@@ -1326,8 +1386,6 @@ struct timer_list_engine_defaults
 // timer_list_engine
 //
 
-//FIXME: describe Timer_Action parameter.
-
 /*!
  * \brief An engine for timer list mechanism.
  *
@@ -1358,6 +1416,10 @@ struct timer_list_engine_defaults
  *
  * \tparam Thread_Safety Thread-safety indicator.
  * Must be timertt::thread_safety::unsafe or timertt::thread_safety::safe.
+ *
+ * \tparam Timer_Action type of functor to perform an user-defined
+ * action when timer expires. This must be Moveable and MoveConstructible
+ * type.
  *
  * \tparam Error_Logger type of logger for errors detected during
  * timer thread execution. Interface for error logger is defined
@@ -1844,8 +1906,6 @@ struct timer_heap_engine_defaults
 // timer_heap_engine
 //
 
-//FIXME: describe Timer_Action parameter.
-
 /*!
  * \brief An engine for timer heap mechanism.
  *
@@ -1870,6 +1930,10 @@ struct timer_heap_engine_defaults
  *
  * \tparam Thread_Safety Thread-safety indicator.
  * Must be timertt::thread_safety::unsafe or timertt::thread_safety::safe.
+ *
+ * \tparam Timer_Action type of functor to perform an user-defined
+ * action when timer expires. This must be Moveable and MoveConstructible
+ * type.
  *
  * \tparam Error_Logger type of logger for errors detected during
  * timer thread execution. Interface for error logger is defined
@@ -2567,6 +2631,9 @@ public :
 	//! An alias for timer_action type.
 	using timer_action = typename Engine::timer_action;
 
+	//! An alias for preallocated timer objects.
+	using preallocated_timer_object = typename Engine::preallocated_timer_object;
+
 	//! Constructor with all parameters.
 	template< typename... Args >
 	basic_methods_impl_mixin(
@@ -2609,6 +2676,23 @@ public :
 				pause,
 				monotonic_clock::duration::zero(),
 				std::move( action ) );
+	}
+
+	//FIXME: document this!
+	template< class Duration_1 >
+	void
+	activate(
+		//! Timer to be activated.
+		preallocated_timer_object & timer,
+		//! Pause for timer execution.
+		Duration_1 pause,
+		//! Action for the timer.
+		timer_action action )
+	{
+		this->activate( 
+			timer_holder{timer},
+			std::move(pause),
+			std::move(action) );
 	}
 
 	//! Activate timer and schedule it for execution.
@@ -2667,6 +2751,27 @@ public :
 			this->notify();
 	}
 
+	//FIXME: document this!
+	template< class Duration_1, class Duration_2 >
+	void
+	activate(
+		//! Timer to be activated.
+		preallocated_timer_object & timer,
+		//! Pause for timer execution.
+		Duration_1 pause,
+		//! Repetition period.
+		//! If <tt>Duration_2::zero() == period</tt> then timer will be
+		//! single-shot.
+		Duration_2 period,
+		//! Action for the timer.
+		timer_action action )
+	{
+		this->activate( timer_holder{timer},
+				std::move(pause),
+				std::move(period),
+				std::move(action) );
+	}
+
 	//! Activate timer and schedule it for execution.
 	/*!
 	 * There is no need to preallocate timer object. It will
@@ -2701,6 +2806,19 @@ public :
 		typename mixin_type::lock_guard locker{ *this };
 
 		m_engine.deactivate( timer );
+	}
+
+	//! Deactivate timer and remove it from the list.
+	/*!
+	 * \since
+	 * v.1.2.0
+	 */
+	void
+	deactivate(
+		//! Timer to be deactivated.
+		preallocated_timer_object & timer )
+	{
+		this->deactivate( timer_holder{timer} );
 	}
 
 	/*!
@@ -2987,13 +3105,15 @@ protected :
 // timer_wheel_thread_template
 //
 
-//FIXME: describe Timer_Action parameter.
-
 /*!
  * \brief A timer wheel thread template.
  *
  * Please see description of details::timer_wheel_engine for the details
  * of the timer wheel mechanism.
+ *
+ * \tparam Timer_Action type of functor to perform an user-defined
+ * action when timer expires. This must be Moveable and MoveConstructible
+ * type.
  *
  * \tparam Error_Logger type of logger for errors detected during
  * timer thread execution. Interface for error logger is defined
@@ -3069,8 +3189,6 @@ public :
 // timer_wheel_manager_template
 //
 
-//FIXME: describe Timer_Action parameter.
-
 /*!
  * \brief A timer wheel manager template.
  *
@@ -3079,6 +3197,10 @@ public :
  *
  * \tparam Thread_Safety Thread-safety indicator.
  * Must be timertt::thread_safety::unsafe or timertt::thread_safety::safe.
+ *
+ * \tparam Timer_Action type of functor to perform an user-defined
+ * action when timer expires. This must be Moveable and MoveConstructible
+ * type.
  *
  * \tparam Error_Logger type of logger for errors detected during
  * timer handling. Interface for error logger is defined
@@ -3159,13 +3281,15 @@ public :
 // timer_list_thread_template
 //
 
-//FIXME: describe Timer_Action parameter.
-
 /*!
  * \brief A timer list thread template.
  *
  * \note Please see description of details::timer_list_engine for the
  * details of this timer mechanism.
+ *
+ * \tparam Timer_Action type of functor to perform an user-defined
+ * action when timer expires. This must be Moveable and MoveConstructible
+ * type.
  *
  * \tparam Error_Logger type of logger for errors detected during
  * timer thread execution. Interface for error logger is defined
@@ -3214,8 +3338,6 @@ public :
 // timer_list_manager_template
 //
 
-//FIXME: describe Timer_Action parameter.
-
 /*!
  * \brief A timer list thread template.
  *
@@ -3224,6 +3346,10 @@ public :
  *
  * \tparam Thread_Safety Thread-safety indicator.
  * Must be timertt::thread_safety::unsafe or timertt::thread_safety::safe.
+ *
+ * \tparam Timer_Action type of functor to perform an user-defined
+ * action when timer expires. This must be Moveable and MoveConstructible
+ * type.
  *
  * \tparam Error_Logger type of logger for errors detected during
  * timer handling. Interface for error logger is defined
@@ -3276,8 +3402,6 @@ public :
 // timer_heap_thread_template
 //
 
-//FIXME: describe Timer_Action parameter.
-
 /*!
  * \brief A timer heap thread template.
  *
@@ -3287,6 +3411,10 @@ public :
  * \tparam Error_Logger type of logger for errors detected during
  * timer thread execution. Interface for error logger is defined
  * by default_error_logger class.
+ *
+ * \tparam Timer_Action type of functor to perform an user-defined
+ * action when timer expires. This must be Moveable and MoveConstructible
+ * type.
  *
  * \tparam Actor_Exception_Handler type of handler for dealing with
  * exceptions thrown from timer actors. Interface for exception handler
@@ -3356,7 +3484,6 @@ public :
 // timer_heap_manager_template
 //
 
-//FIXME: describe Timer_Action parameter.
 /*!
  * \brief A timer heap manager template.
  *
@@ -3365,6 +3492,10 @@ public :
  *
  * \tparam Thread_Safety Thread-safety indicator.
  * Must be timertt::thread_safety::unsafe or timertt::thread_safety::safe.
+ *
+ * \tparam Timer_Action type of functor to perform an user-defined
+ * action when timer expires. This must be Moveable and MoveConstructible
+ * type.
  *
  * \tparam Error_Logger type of logger for errors detected during
  * timer handling. Interface for error logger is defined
