@@ -9,13 +9,13 @@ There is several methods for obtaining timertt library.
 <a
 href="https://sourceforge.net/projects/sobjectizer/files/timertt/">SourceForge
 site</a>. Those archives have names like timertt-x.y.x-headeronly.7z. For
-example: timertt-1.1.0-headeronly.7z.
+example: timertt-1.2.0-headeronly.7z.
 
 2. The archive with library, samples, tests and documentation can be downloaded as archive from 
 <a
 href="https://sourceforge.net/projects/sobjectizer/files/timertt/">SourceForge
 site</a>. Those archives have names like timertt-x.y.x-full.7z. For
-example: timertt-1.1.0-full.7z.
+example: timertt-1.2.0-full.7z.
 
 3. The source code of library can be exported or checked out from <a
 href="https://sourceforge.net/projects/sobjectizer/">SObjectizer</a>
@@ -34,12 +34,16 @@ to add path to <tt>timertt/all.hpp</tt> to INCLUDE path.
 
 An object of appropriate thread type must be created. For example:
 \code
-timertt::timer_wheel_thread_t tt;
+using timer_wheel_thread = timertt::timer_wheel_thread_template<
+		timertt::default_timer_action_type,
+		timertt::default_error_logger,
+		timertt::default_actor_exception_handler >;
+timer_wheel_thread tt;
 \endcode
 
 Then timer thread must be started by calling start() method:
 \code
-timertt::timer_wheel_thread_t tt;
+timer_wheel_thread tt;
 tt.start();
 \endcode
 
@@ -50,7 +54,11 @@ are created by activate() methods with only \a pause argument. Periodic timers
 are created by activate() methods with \a pause and \a period arguments:
 
 \code
-timertt::timer_wheel_thread_t tt;
+using timer_wheel_thread = timertt::timer_wheel_thread_template<
+		timertt::default_timer_action_type,
+		timertt::default_error_logger,
+		timertt::default_actor_exception_handler >;
+timer_wheel_thread tt;
 tt.start();
 
 // Adding single-shot timer.
@@ -67,14 +75,18 @@ tt.activate(
 \endcode
 
 Timers can be deactivated. To do so it is necessary to preallocate timer
-and store timer identifier as timertt::timer_holder_t object. This object
+and store timer identifier as timer_holder object. This object
 then passed to activate() and deactivate() methods:
 \code
-timertt::timer_wheel_thread_t tt;
+using timer_wheel_thread = timertt::timer_wheel_thread_template<
+		timertt::default_timer_action_type,
+		timertt::default_error_logger,
+		timertt::default_actor_exception_handler >;
+timer_wheel_thread tt;
 tt.start();
 
 // Adding single-shot timer.
-timertt::timer_holder_t id1 = tt.allocate();
+timer_wheel_thread::timer_holder id1 = tt.allocate();
 tt.activate( id1, std::chrono::milliseconds( 500 ),
   []() { std::cout << "Hello, World" << std::endl; } );
 
@@ -106,7 +118,11 @@ Timer thread must be stopped. It can be done several ways:
 2. There is a method shutdown_and_join() which sends shutdown signal
 to the timer thread and waits the finishing of the timer thread:
 \code
-timertt::timer_wheel_thread_t tt;
+using timer_wheel_thread = timertt::timer_wheel_thread_template<
+		timertt::default_timer_action_type,
+		timertt::default_error_logger,
+		timertt::default_actor_exception_handler >;
+timer_wheel_thread tt;
 tt.start();
 ...// Some work with timers...
 tt.shutdown_and_join();
@@ -117,7 +133,11 @@ the thread, but no waits. And a method join() which waits the timer
 thread. This methods can be useful if shutdown signal must be sent
 from timer action:
 \code
-timertt::timer_wheel_thread_t tt;
+using timer_wheel_thread = timertt::timer_wheel_thread_template<
+		timertt::default_timer_action_type,
+		timertt::default_error_logger,
+		timertt::default_actor_exception_handler >;
+timer_wheel_thread tt;
 tt.start();
 
 tt.activate( std::chrono::milliseconds( 500 ),
@@ -248,6 +268,42 @@ for work just after creation. This is a big difference from timer threads: a
 timer can be scheduled to a timer thread only after invocation of start method
 for the timer thread. But allocate/activate methods for timer managers can be
 called at any time.
+
+\section timertt_getting_started__custom_timer_actions User defined Timer_Action types
+
+Since v.1.2.0 there is a possibility to specify a custom type for Timer_Action.
+For example:
+\code
+// This functor must be run when a timer expires.
+class delayed_action_performer
+{
+	... // Some stuff.
+public:
+	... // Some public stuff.
+
+	// This operator will be called by timertt.
+	void operator()() const
+	{
+		... // Code to be run when a timer expires.
+	}
+};
+
+timertt::timer_heap_manager_template<
+		timertt::thread_safety::unsafe,
+		// Specify type of user's Timer_Action.
+		delayed_action_performer >
+	tm( ... );
+
+// Anonymous single-shot timer.
+tm.activate( std::chrono::milliseconds(100), delayed_action_performer{...} );
+// Anonymous periodic timer.
+tm.activate(
+  std::chrono::milliseconds(100),
+  std::chrono::milliseconds(500),
+  delayed_action_performer{...} );
+\endcode
+
+User-defined Timer_Action type must be Moveable and MoveConstructibe type.
 
  */
 

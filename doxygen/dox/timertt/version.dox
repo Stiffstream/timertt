@@ -1,6 +1,28 @@
 /*!
  * \page timertt_version timertt Version History
  *
+ * \section timertt_version_1_2_0 1.2.0
+ *
+ * \attention
+ * Version 1.2.0 breaks compatibility with previous 1.0 and 1.1 versions.
+ *
+ * Some typedefs like timer_wheel_thread_t were removed (they were present
+ * in v.1.1.* for compatibility with version 1.0).
+ *
+ * There is no more `timer_action` type. It is replaced by
+ * `timertt::default_timer_action_type`.
+ *
+ * There is a possibility to specify a type of timer action as a template
+ * parameter Timer_Action. By default the type of timer action is still
+ * `std::function<void()>`.
+ *
+ * Some old compilers which has no decent support of C++11 can't compile
+ * timertt now.
+ *
+ * \section timertt_version_1_1_3 1.1.3
+ *
+ * Method empty() has been added to timer engines.
+ *
  * \section timertt_version_1_1_1 1.1.1
  *
  * New struct timertt::timer_quantities has been added.
