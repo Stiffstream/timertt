@@ -3292,6 +3292,22 @@ public :
 };
 
 //
+// default_timer_wheel_thread
+//
+/*!
+ * \brief Alias for timer_wheel_thread_template with the default
+ * parameters.
+ *
+ * \since
+ * v.1.2.0
+ */
+using default_timer_wheel_thread =
+		timer_wheel_thread_template<
+				default_timer_action_type,
+				default_error_logger,
+				default_actor_exception_handler >;
+
+//
 // timer_list_thread_template
 //
 
@@ -3347,6 +3363,22 @@ public :
 	{
 	}
 };
+
+//
+// default_timer_list_thread
+//
+/*!
+ * \brief Alias for timer_list_thread_template with the default
+ * parameters.
+ *
+ * \since
+ * v.1.2.0
+ */
+using default_timer_list_thread =
+		timer_list_thread_template<
+				default_timer_action_type,
+				default_error_logger,
+				default_actor_exception_handler >;
 
 //
 // timer_list_manager_template
@@ -3493,6 +3525,22 @@ public :
 				exception_handler )
 	{}
 };
+
+//
+// default_timer_heap_thread
+//
+/*!
+ * \brief Alias for timer_heap_thread_template with the default
+ * parameters.
+ *
+ * \since
+ * v.1.2.0
+ */
+using default_timer_heap_thread =
+		timer_heap_thread_template<
+				default_timer_action_type,
+				default_error_logger,
+				default_actor_exception_handler >;
 
 //
 // timer_heap_manager_template

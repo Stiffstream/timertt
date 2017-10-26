@@ -1,9 +1,6 @@
 #include <timertt/all.hpp>
 
-using timer_thread_t = timertt::timer_list_thread_template<
-	timertt::default_timer_action_type,
-	timertt::default_error_logger,
-	timertt::default_actor_exception_handler >;
+using timer_thread_t = timertt::default_timer_list_thread;
 
 #include "test_cases.inl"
 
