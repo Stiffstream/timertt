@@ -4,6 +4,7 @@
 
 /*!
  * \example timertt/wheel/trivial/main.cpp
+ * \example timertt/wheel/trivial_preallocated/main.cpp
  */
 
 /*!
