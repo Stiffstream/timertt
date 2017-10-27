@@ -33,7 +33,7 @@ UT_UNIT_TEST( single_shot )
 		"single_shot" );
 }
 
-UT_UNIT_TEST( single_shot_preallocated )
+UT_UNIT_TEST( single_shot_scoped )
 {
 	run_with_time_limit(
 		[]()
@@ -46,7 +46,7 @@ UT_UNIT_TEST( single_shot_preallocated )
 
 			UT_CHECK_EQ( true, tt.empty() );
 
-			timer_thread_t::preallocated_timer_object timer;
+			timer_thread_t::scoped_timer_object timer;
 			tt.activate( timer,
 					milliseconds( 20 ), test_action(v, "hello") );
 			UT_CHECK_EQ( false, tt.empty() );
@@ -57,7 +57,7 @@ UT_UNIT_TEST( single_shot_preallocated )
 			UT_CHECK_EQ( true, tt.empty() );
 		},
 		1,
-		"single_shot_preallocated" );
+		"single_shot_scoped" );
 }
 
 UT_UNIT_TEST( several_single_shots )
@@ -129,7 +129,7 @@ UT_UNIT_TEST( anonymous_timers )
 int main()
 {
 	UT_RUN_UNIT_TEST( single_shot )
-	UT_RUN_UNIT_TEST( single_shot_preallocated )
+	UT_RUN_UNIT_TEST( single_shot_scoped )
 	UT_RUN_UNIT_TEST( several_single_shots )
 	UT_RUN_UNIT_TEST( anonymous_timers )
 }

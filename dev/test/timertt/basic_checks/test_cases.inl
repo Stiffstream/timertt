@@ -73,7 +73,7 @@ UT_UNIT_TEST( single_shot )
 		"single_shot" );
 }
 
-UT_UNIT_TEST( single_shot_preallocated )
+UT_UNIT_TEST( single_shot_scoped )
 {
 	run_with_time_limit(
 		[]()
@@ -86,7 +86,7 @@ UT_UNIT_TEST( single_shot_preallocated )
 
 			UT_CHECK_EQ( true, tt.empty() );
 
-			timer_thread_t::preallocated_timer_object timer;
+			timer_thread_t::scoped_timer_object timer;
 			tt.activate( timer,
 					milliseconds( 20 ), [&v]() { v = "hello"; } );
 			UT_CHECK_EQ( false, tt.empty() );
@@ -97,7 +97,7 @@ UT_UNIT_TEST( single_shot_preallocated )
 			UT_CHECK_EQ( true, tt.empty() );
 		},
 		1,
-		"single_shot_preallocated" );
+		"single_shot_scoped" );
 }
 
 UT_UNIT_TEST( single_periodic )
@@ -131,7 +131,7 @@ UT_UNIT_TEST( single_periodic )
 		"single_periodic" );
 }
 
-UT_UNIT_TEST( single_periodic_preallocated )
+UT_UNIT_TEST( single_periodic_scoped )
 {
 	run_with_time_limit(
 		[]()
@@ -141,7 +141,7 @@ UT_UNIT_TEST( single_periodic_preallocated )
 			tt.start();
 
 			std::string v;
-			timer_thread_t::preallocated_timer_object id;
+			timer_thread_t::scoped_timer_object id;
 
 			tt.activate(
 					id,
@@ -159,7 +159,7 @@ UT_UNIT_TEST( single_periodic_preallocated )
 			UT_CHECK_EQ( v, "1111" );
 		},
 		1,
-		"single_periodic_preallocated" );
+		"single_periodic_scoped" );
 }
 
 UT_UNIT_TEST( several_single_shots )
@@ -263,7 +263,7 @@ UT_UNIT_TEST( several_periodics )
 		"several_periodics" );
 }
 
-UT_UNIT_TEST( several_periodics_preallocated )
+UT_UNIT_TEST( several_periodics_scoped )
 {
 	run_with_time_limit(
 		[]()
@@ -274,14 +274,14 @@ UT_UNIT_TEST( several_periodics_preallocated )
 
 			std::string v;
 
-			timer_thread_t::preallocated_timer_object id1;
+			timer_thread_t::scoped_timer_object id1;
 			tt.activate(
 					id1,
 					milliseconds( 150 ),
 					milliseconds( 150 ),
 					[&v]() { v += "(150/150)"; } );
 
-			timer_thread_t::preallocated_timer_object id2;
+			timer_thread_t::scoped_timer_object id2;
 			tt.activate(
 					id2,
 					milliseconds( 200 ),
@@ -293,7 +293,7 @@ UT_UNIT_TEST( several_periodics_preallocated )
 							tt.deactivate( id2 );
 					} );
 
-			timer_thread_t::preallocated_timer_object id3;
+			timer_thread_t::scoped_timer_object id3;
 			tt.activate(
 					id3,
 					milliseconds( 500 ),
@@ -302,7 +302,7 @@ UT_UNIT_TEST( several_periodics_preallocated )
 						v += "(500/150)";
 					} );
 
-			timer_thread_t::preallocated_timer_object id4;
+			timer_thread_t::scoped_timer_object id4;
 			tt.activate(
 					id4,
 					milliseconds( 940 ),
@@ -325,7 +325,7 @@ UT_UNIT_TEST( several_periodics_preallocated )
 			UT_CHECK_EQ( v, expected );
 		},
 		5,
-		"several_periodics_preallocated" );
+		"several_periodics_scoped" );
 }
 
 UT_UNIT_TEST( anonymous_timers )
@@ -574,12 +574,12 @@ int main()
 	UT_RUN_UNIT_TEST( no_demands )
 	UT_RUN_UNIT_TEST( schedule_when_not_started )
 	UT_RUN_UNIT_TEST( single_shot )
-	UT_RUN_UNIT_TEST( single_shot_preallocated )
+	UT_RUN_UNIT_TEST( single_shot_scoped )
 	UT_RUN_UNIT_TEST( single_periodic )
-	UT_RUN_UNIT_TEST( single_periodic_preallocated )
+	UT_RUN_UNIT_TEST( single_periodic_scoped )
 	UT_RUN_UNIT_TEST( several_single_shots )
 	UT_RUN_UNIT_TEST( several_periodics )
-	UT_RUN_UNIT_TEST( several_periodics_preallocated )
+	UT_RUN_UNIT_TEST( several_periodics_scoped )
 	UT_RUN_UNIT_TEST( anonymous_timers )
 	UT_RUN_UNIT_TEST( demands_cleanup_on_shutdown )
 	UT_RUN_UNIT_TEST( demands_deletion_during_processing )

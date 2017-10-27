@@ -55,7 +55,7 @@ UT_UNIT_TEST( single_shot )
 		"single_shot" );
 }
 
-UT_UNIT_TEST( single_shot_preallocated )
+UT_UNIT_TEST( single_shot_scoped )
 {
 	run_with_time_limit(
 		[]()
@@ -64,7 +64,7 @@ UT_UNIT_TEST( single_shot_preallocated )
 
 			std::string v;
 
-			timer_manager_t::preallocated_timer_object timer;
+			timer_manager_t::scoped_timer_object timer;
 			tt.activate( timer,
 					milliseconds( 20 ), [&v]() { v = "hello"; } );
 
@@ -80,7 +80,7 @@ UT_UNIT_TEST( single_shot_preallocated )
 			UT_CHECK_EQ( v, "hello" );
 		},
 		1,
-		"single_shot_preallocated" );
+		"single_shot_scoped" );
 }
 
 UT_UNIT_TEST( single_periodic )
@@ -120,7 +120,7 @@ UT_UNIT_TEST( single_periodic )
 		"single_periodic" );
 }
 
-UT_UNIT_TEST( single_periodic_preallocated )
+UT_UNIT_TEST( single_periodic_scoped )
 {
 	run_with_time_limit(
 		[]()
@@ -128,7 +128,7 @@ UT_UNIT_TEST( single_periodic_preallocated )
 			timer_manager_t tt;
 
 			std::string v;
-			timer_manager_t::preallocated_timer_object timer;
+			timer_manager_t::scoped_timer_object timer;
 
 			tt.activate(
 					timer,
@@ -154,7 +154,7 @@ UT_UNIT_TEST( single_periodic_preallocated )
 			UT_CHECK_EQ( v, "1111" );
 		},
 		1,
-		"single_periodic_preallocated" );
+		"single_periodic_scoped" );
 }
 
 UT_UNIT_TEST( nearest_timeout )
@@ -504,9 +504,9 @@ UT_UNIT_TEST( reset_test )
 int main()
 {
 	UT_RUN_UNIT_TEST( single_shot )
-	UT_RUN_UNIT_TEST( single_shot_preallocated )
+	UT_RUN_UNIT_TEST( single_shot_scoped )
 	UT_RUN_UNIT_TEST( single_periodic )
-	UT_RUN_UNIT_TEST( single_periodic_preallocated )
+	UT_RUN_UNIT_TEST( single_periodic_scoped )
 	UT_RUN_UNIT_TEST( several_single_shots )
 	UT_RUN_UNIT_TEST( several_periodics )
 	UT_RUN_UNIT_TEST( anonymous_timers )

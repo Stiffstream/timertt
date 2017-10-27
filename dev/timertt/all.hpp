@@ -177,7 +177,7 @@ struct timer_object
 };
 
 //
-// preallocated_timer_object_holder
+// scoped_timer_object_holder
 //
 //FIXME: document this!
 /*!
@@ -188,19 +188,19 @@ struct timer_object
  * v.1.2.0
  */
 template< typename Actual_Object >
-class preallocated_timer_object_holder
+class scoped_timer_object_holder
 {
 	Actual_Object m_object;
 
 public :
-	preallocated_timer_object_holder()
+	scoped_timer_object_holder()
 	{
 		// Actual object must have yet another reference to prevent its deletion.
 		Actual_Object::increment_references( &m_object );
 	}
 
-	preallocated_timer_object_holder( const preallocated_timer_object_holder & ) = delete;
-	preallocated_timer_object_holder( preallocated_timer_object_holder && ) = delete;
+	scoped_timer_object_holder( const scoped_timer_object_holder & ) = delete;
+	scoped_timer_object_holder( scoped_timer_object_holder && ) = delete;
 
 	Actual_Object *
 	ptr() { return &m_object; }
@@ -245,11 +245,11 @@ public :
 		o.m_timer = nullptr;
 	}
 
-	//! Constructor for the case when timer object is preallocated.
+	//! Constructor for the case when timer object is a scoped timer.
 	template< typename Actual_Object >
 	inline timer_object_holder(
-		preallocated_timer_object_holder<Actual_Object> & preallocated )
-		:	timer_object_holder( preallocated.ptr() )
+		scoped_timer_object_holder<Actual_Object> & scoped )
+		:	timer_object_holder( scoped.ptr() )
 	{}
 
 	//! Destructor.
@@ -805,9 +805,9 @@ public :
 	//! Alias for timer_action type.
 	using timer_action = typename base_type::timer_action;	
 
-	//! Alias for preallocated timer object.
-	using preallocated_timer_object =
-			preallocated_timer_object_holder< timer_type >;
+	//! Alias for scoped timer object.
+	using scoped_timer_object =
+			scoped_timer_object_holder< timer_type >;
 
 	//! Constructor with all parameters.
 	timer_wheel_engine(
@@ -1452,9 +1452,9 @@ public :
 	//! Alias for timer_action type.
 	using timer_action = typename base_type::timer_action;	
 
-	//! Alias for preallocated timer object.
-	using preallocated_timer_object =
-			preallocated_timer_object_holder< timer_type >;
+	//! Alias for scoped timer object.
+	using scoped_timer_object =
+			scoped_timer_object_holder< timer_type >;
 
 	//! Default constructor.
 	timer_list_engine()
@@ -1973,9 +1973,9 @@ public :
 	//! Alias for timer_action type.
 	using timer_action = typename base_type::timer_action;	
 
-	//! Alias for preallocated timer object.
-	using preallocated_timer_object =
-			preallocated_timer_object_holder< timer_type >;
+	//! Alias for scoped timer object.
+	using scoped_timer_object =
+			scoped_timer_object_holder< timer_type >;
 
 	//! Constructor with all parameters.
 	timer_heap_engine(
@@ -2645,8 +2645,8 @@ public :
 	//! An alias for timer_action type.
 	using timer_action = typename Engine::timer_action;
 
-	//! An alias for preallocated timer objects.
-	using preallocated_timer_object = typename Engine::preallocated_timer_object;
+	//! An alias for scoped timer objects.
+	using scoped_timer_object = typename Engine::scoped_timer_object;
 
 	//! Constructor with all parameters.
 	template< typename... Args >
@@ -2697,7 +2697,7 @@ public :
 	void
 	activate(
 		//! Timer to be activated.
-		preallocated_timer_object & timer,
+		scoped_timer_object & timer,
 		//! Pause for timer execution.
 		Duration_1 pause,
 		//! Action for the timer.
@@ -2770,7 +2770,7 @@ public :
 	void
 	activate(
 		//! Timer to be activated.
-		preallocated_timer_object & timer,
+		scoped_timer_object & timer,
 		//! Pause for timer execution.
 		Duration_1 pause,
 		//! Repetition period.
@@ -2830,7 +2830,7 @@ public :
 	void
 	deactivate(
 		//! Timer to be deactivated.
-		preallocated_timer_object & timer )
+		scoped_timer_object & timer )
 	{
 		this->deactivate( timer_holder{timer} );
 	}

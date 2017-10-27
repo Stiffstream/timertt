@@ -37,7 +37,7 @@ int main()
 			} );
 
 	// Preallocation of timer and explicit activation.
-	timer_wheel_thread_t::preallocated_timer_object id1;
+	timer_wheel_thread_t::scoped_timer_object id1;
 	tt.activate( id1, milliseconds( 30 ),
 			[]() {
 				cout << "Preallocated single-shot timer" << endl;
@@ -45,7 +45,7 @@ int main()
 
 	// Periodic timer with timer preallocation, explicit activation
 	// and deactivation from the timer action.
-	timer_wheel_thread_t::preallocated_timer_object id2;
+	timer_wheel_thread_t::scoped_timer_object id2;
 	tt.activate( id2, milliseconds( 40 ), milliseconds( 15 ),
 			[&id2, &tt]() {
 				static int i = 0;
@@ -57,7 +57,7 @@ int main()
 
 	// Single-shot timer with explicit activation and deactivation
 	// before timer event.
-	timer_wheel_thread_t::preallocated_timer_object id3;
+	timer_wheel_thread_t::scoped_timer_object id3;
 	tt.activate( id3, milliseconds( 50 ),
 			[]() {
 				cerr << "This timer must not be called!" << endl;
