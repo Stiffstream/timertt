@@ -16,6 +16,21 @@
  * parameter Timer_Action. By default the type of timer action is still
  * `std::function<void()>`.
  *
+ * Scoped timer objects are introduced. This timer objects is not allocated
+ * by timertt's timer_managers or timer_threads. A user creates them and
+ * controlls their lifetimes. Something like:
+ * \code
+ * void f() {
+ * 	timertt::default_timer_wheel_thread tt;
+ * 	timertt::default_timer_wheel_thread::scoped_timer_object timer;
+ * 	tt.start();
+ * 	...
+ * 	tt.activate(timer, std::chrono::milliseconds(250), []{...});
+ * 	...
+ * 	tt.shutdown_and_join();
+ * }
+ * \endcode
+ *
  * New names: `timertt::default_timer_wheel_thread`,
  * `timertt::default_timer_heap_thread` and
  * `timertt::default_timer_list_thread` as an aliases for timer threads

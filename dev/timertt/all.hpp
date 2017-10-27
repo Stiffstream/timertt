@@ -179,11 +179,37 @@ struct timer_object
 //
 // scoped_timer_object_holder
 //
-//FIXME: document this!
 /*!
+ * \brief A special wrapper to be used to hold an actual timer object which
+ * is not allocated dynamically.
+ *
+ * This class is a part of support for scoped timer objects. Every timer
+ * engine will define its own `scoped_timer_object` by using this
+ * template class. Something like:
+ * \code
+ * class some_engine
+ * {
+ * 	struct timer_type { ... };
+ * public :
+ * 	using scoped_timer_object = scoped_timer_object_holder<timer_type>;
+ * 	...
+ * };
+ * \endcode
+ *
+ * \par Some implementation details.
+ * Version 1.2.0 doesn't change way of working with actual timer objects.
+ * They are still reference countable. It means that when a scoped timer object
+ * is passed to engine's `activate` method a reference count will be
+ * incremented.  When this object is passed to `deactivate` method then
+ * reference counter will be decremented. If reference counter becomes zero
+ * then the timer object will be deallocated by calling `delete`.
+ * To prevent this scoped_timer_object_holder automatically incremented
+ * reference counter by 1 in the constructor. It means that the reference
+ * counter will not be zero (in normal scenarios).
  *
  * \note
  * This type is not Copyable nor Moveable.
+ *
  * \since
  * v.1.2.0
  */
@@ -2692,7 +2718,20 @@ public :
 				std::move( action ) );
 	}
 
-	//FIXME: document this!
+	//! Activate a scoped timer and schedule it for execution.
+	/*!
+	 *
+	 * \note
+	 * A proper lifetime of this timer must be controlled by user.
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is already activated.
+	 *
+	 * \tparam Duration_1 actual type which represents time duration.
+	 *
+	 * \since
+	 * v.1.2.0
+	 */
 	template< class Duration_1 >
 	void
 	activate(
@@ -2765,7 +2804,21 @@ public :
 			this->notify();
 	}
 
-	//FIXME: document this!
+	//! Activate a scoped timer and schedule it for execution.
+	/*!
+	 *
+	 * \note
+	 * A proper lifetime of this timer must be controlled by user.
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is already activated.
+	 *
+	 * \tparam Duration_1 actual type which represents time duration.
+	 * \tparam Duration_2 actual type which represents time duration.
+	 *
+	 * \since
+	 * v.1.2.0
+	 */
 	template< class Duration_1, class Duration_2 >
 	void
 	activate(
