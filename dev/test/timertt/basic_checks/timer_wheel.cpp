@@ -1,6 +1,6 @@
 #include <timertt/all.hpp>
 
-typedef timertt::timer_wheel_thread_t timer_thread_t;
+using timer_thread_t = timertt::default_timer_wheel_thread;
 
 #include "test_cases.inl"
 

@@ -13,12 +13,12 @@ using namespace timertt;
 
 int main()
 {
-	using timer_list_thread_t = timer_list_thread_template<
+	using timer_wheel_thread_t = timer_wheel_thread_template<
 		default_timer_action_type,
 		default_error_logger,
 		default_actor_exception_handler >;
 
-	timer_list_thread_t tt;
+	timer_wheel_thread_t tt;
 
 	// Timer thread must be started before activation of timers.
 	tt.start();
@@ -36,8 +36,8 @@ int main()
 				++i;
 			} );
 
-	// Allocation of timer and explicit activation.
-	auto id1 = tt.allocate();
+	// Preallocation of timer and explicit activation.
+	timer_wheel_thread_t::scoped_timer_object id1;
 	tt.activate( id1, milliseconds( 30 ),
 			[]() {
 				cout << "Preallocated single-shot timer" << endl;
@@ -45,9 +45,9 @@ int main()
 
 	// Periodic timer with timer preallocation, explicit activation
 	// and deactivation from the timer action.
-	auto id2 = tt.allocate();
+	timer_wheel_thread_t::scoped_timer_object id2;
 	tt.activate( id2, milliseconds( 40 ), milliseconds( 15 ),
-			[id2, &tt]() {
+			[&id2, &tt]() {
 				static int i = 0;
 				cout << "Preallocated periodic (" << i << ")" << endl;
 				++i;
@@ -57,7 +57,7 @@ int main()
 
 	// Single-shot timer with explicit activation and deactivation
 	// before timer event.
-	auto id3 = tt.allocate();
+	timer_wheel_thread_t::scoped_timer_object id3;
 	tt.activate( id3, milliseconds( 50 ),
 			[]() {
 				cerr << "This timer must not be called!" << endl;

@@ -73,6 +73,33 @@ UT_UNIT_TEST( single_shot )
 		"single_shot" );
 }
 
+UT_UNIT_TEST( single_shot_scoped )
+{
+	run_with_time_limit(
+		[]()
+		{
+			timer_thread_t tt;
+
+			tt.start();
+
+			std::string v;
+
+			UT_CHECK_EQ( true, tt.empty() );
+
+			timer_thread_t::scoped_timer_object timer;
+			tt.activate( timer,
+					milliseconds( 20 ), [&v]() { v = "hello"; } );
+			UT_CHECK_EQ( false, tt.empty() );
+
+			std::this_thread::sleep_for( milliseconds( 100 ) );
+
+			UT_CHECK_EQ( v, "hello" );
+			UT_CHECK_EQ( true, tt.empty() );
+		},
+		1,
+		"single_shot_scoped" );
+}
+
 UT_UNIT_TEST( single_periodic )
 {
 	run_with_time_limit(
@@ -104,6 +131,37 @@ UT_UNIT_TEST( single_periodic )
 		"single_periodic" );
 }
 
+UT_UNIT_TEST( single_periodic_scoped )
+{
+	run_with_time_limit(
+		[]()
+		{
+			timer_thread_t tt;
+
+			tt.start();
+
+			std::string v;
+			timer_thread_t::scoped_timer_object id;
+
+			tt.activate(
+					id,
+					microseconds( 500 ),
+					milliseconds( 25 ),
+					[&v, &id, &tt]() {
+						v += "1";
+						if( v.size() >= 4 )
+							tt.deactivate( id );
+					} );
+
+			std::this_thread::sleep_for( milliseconds( 150 ) );
+			tt.shutdown_and_join();
+
+			UT_CHECK_EQ( v, "1111" );
+		},
+		1,
+		"single_periodic_scoped" );
+}
+
 UT_UNIT_TEST( several_single_shots )
 {
 	run_with_time_limit(
@@ -120,23 +178,23 @@ UT_UNIT_TEST( several_single_shots )
 			tt.activate( tt.allocate(),
 					milliseconds( 60 ), [&v]() { v += "(60)"; } );
 			tt.activate( tt.allocate(),
-					milliseconds( 100 ), [&v]() { v += "(100)"; } );
+					milliseconds( 120 ), [&v]() { v += "(120)"; } );
 			tt.activate( tt.allocate(),
 					milliseconds( 40 ), [&v]() { v += "(40)"; } );
 			tt.activate( tt.allocate(),
-					milliseconds( 120 ), [&v]() { v += "(120)"; } );
+					milliseconds( 150 ), [&v]() { v += "(150)"; } );
 			tt.activate( tt.allocate(),
 					milliseconds( 20 ), [&v]() { v += "(20)"; } );
 			tt.activate( tt.allocate(),
-					milliseconds( 90 ), [&v]() { v += "(90)"; } );
+					milliseconds( 100 ), [&v]() { v += "(100)"; } );
 			tt.activate( tt.allocate(),
-					milliseconds( 140 ), [&v]() { v += "(140)"; } );
+					milliseconds( 170 ), [&v]() { v += "(170)"; } );
 
 			std::this_thread::sleep_for( milliseconds( 200 ) );
 
 			tt.shutdown_and_join();
 
-			UT_CHECK_EQ( v, "(20)(40)(60)(80)(90)(100)(120)(140)" );
+			UT_CHECK_EQ( v, "(20)(40)(60)(80)(100)(120)(150)(170)" );
 		},
 		1,
 		"several_single_shots" );
@@ -203,6 +261,71 @@ UT_UNIT_TEST( several_periodics )
 		},
 		5,
 		"several_periodics" );
+}
+
+UT_UNIT_TEST( several_periodics_scoped )
+{
+	run_with_time_limit(
+		[]()
+		{
+			timer_thread_t tt;
+
+			tt.start();
+
+			std::string v;
+
+			timer_thread_t::scoped_timer_object id1;
+			tt.activate(
+					id1,
+					milliseconds( 150 ),
+					milliseconds( 150 ),
+					[&v]() { v += "(150/150)"; } );
+
+			timer_thread_t::scoped_timer_object id2;
+			tt.activate(
+					id2,
+					milliseconds( 200 ),
+					milliseconds( 200 ),
+					[&v, &id2, &tt]() {
+						static int i = 0;
+						v += "(200/200)";
+						if( ++i == 2 )
+							tt.deactivate( id2 );
+					} );
+
+			timer_thread_t::scoped_timer_object id3;
+			tt.activate(
+					id3,
+					milliseconds( 500 ),
+					milliseconds( 150 ),
+					[&v]() {
+						v += "(500/150)";
+					} );
+
+			timer_thread_t::scoped_timer_object id4;
+			tt.activate(
+					id4,
+					milliseconds( 940 ),
+					milliseconds( 20 ),
+					[&v, &id4, &tt]() {
+						static int i = 0;
+						v += "(940/20)";
+						if( ++i == 2 )
+							tt.deactivate( id4 );
+					} );
+
+			std::this_thread::sleep_for( milliseconds( 1000 ) );
+
+			tt.shutdown_and_join();
+
+			const std::string expected =
+					"(150/150)(200/200)(150/150)(200/200)(150/150)(500/150)"
+					"(150/150)(500/150)(150/150)(500/150)(150/150)(940/20)"
+					"(500/150)(940/20)";
+			UT_CHECK_EQ( v, expected );
+		},
+		5,
+		"several_periodics_scoped" );
 }
 
 UT_UNIT_TEST( anonymous_timers )
@@ -451,9 +574,12 @@ int main()
 	UT_RUN_UNIT_TEST( no_demands )
 	UT_RUN_UNIT_TEST( schedule_when_not_started )
 	UT_RUN_UNIT_TEST( single_shot )
+	UT_RUN_UNIT_TEST( single_shot_scoped )
 	UT_RUN_UNIT_TEST( single_periodic )
+	UT_RUN_UNIT_TEST( single_periodic_scoped )
 	UT_RUN_UNIT_TEST( several_single_shots )
 	UT_RUN_UNIT_TEST( several_periodics )
+	UT_RUN_UNIT_TEST( several_periodics_scoped )
 	UT_RUN_UNIT_TEST( anonymous_timers )
 	UT_RUN_UNIT_TEST( demands_cleanup_on_shutdown )
 	UT_RUN_UNIT_TEST( demands_deletion_during_processing )
