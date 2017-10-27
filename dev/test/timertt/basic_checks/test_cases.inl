@@ -178,23 +178,23 @@ UT_UNIT_TEST( several_single_shots )
 			tt.activate( tt.allocate(),
 					milliseconds( 60 ), [&v]() { v += "(60)"; } );
 			tt.activate( tt.allocate(),
-					milliseconds( 100 ), [&v]() { v += "(100)"; } );
+					milliseconds( 120 ), [&v]() { v += "(120)"; } );
 			tt.activate( tt.allocate(),
 					milliseconds( 40 ), [&v]() { v += "(40)"; } );
 			tt.activate( tt.allocate(),
-					milliseconds( 120 ), [&v]() { v += "(120)"; } );
+					milliseconds( 150 ), [&v]() { v += "(150)"; } );
 			tt.activate( tt.allocate(),
 					milliseconds( 20 ), [&v]() { v += "(20)"; } );
 			tt.activate( tt.allocate(),
-					milliseconds( 90 ), [&v]() { v += "(90)"; } );
+					milliseconds( 100 ), [&v]() { v += "(100)"; } );
 			tt.activate( tt.allocate(),
-					milliseconds( 140 ), [&v]() { v += "(140)"; } );
+					milliseconds( 170 ), [&v]() { v += "(170)"; } );
 
 			std::this_thread::sleep_for( milliseconds( 200 ) );
 
 			tt.shutdown_and_join();
 
-			UT_CHECK_EQ( v, "(20)(40)(60)(80)(90)(100)(120)(140)" );
+			UT_CHECK_EQ( v, "(20)(40)(60)(80)(100)(120)(150)(170)" );
 		},
 		1,
 		"several_single_shots" );
