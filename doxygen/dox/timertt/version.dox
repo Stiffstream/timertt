@@ -16,7 +16,7 @@
  * parameter Timer_Action. By default the type of timer action is still
  * `std::function<void()>`.
  *
- * Scoped timer objects are introduced. This timer objects is not allocated
+ * Scoped timer objects are introduced. These timer objects is not allocated
  * by timertt's timer_managers or timer_threads. A user creates them and
  * controlls their lifetimes. Something like:
  * \code
