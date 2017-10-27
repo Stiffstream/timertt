@@ -301,7 +301,7 @@ UT_UNIT_TEST( anonymous_timers )
 
 			UT_CHECK_EQ( 3u, total_timers( tt.get_timer_quantities() ) );
 
-			do_timer_loop_for( tt, milliseconds( 190 ) );
+			do_timer_loop_for( tt, milliseconds( 180 ) );
 
 			UT_CHECK_EQ( 1u, total_timers( tt.get_timer_quantities() ) );
 

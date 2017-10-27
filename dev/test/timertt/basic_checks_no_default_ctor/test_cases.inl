@@ -76,23 +76,23 @@ UT_UNIT_TEST( several_single_shots )
 			tt.activate( tt.allocate(),
 					milliseconds( 60 ), test_action(v, "(60)") );
 			tt.activate( tt.allocate(),
-					milliseconds( 100 ), test_action(v, "(100)") );
+					milliseconds( 120 ), test_action(v, "(120)") );
 			tt.activate( tt.allocate(),
 					milliseconds( 40 ), test_action(v, "(40)") );
 			tt.activate( tt.allocate(),
-					milliseconds( 120 ), test_action(v, "(120)") );
+					milliseconds( 150 ), test_action(v, "(150)") );
 			tt.activate( tt.allocate(),
 					milliseconds( 20 ), test_action(v, "(20)") );
 			tt.activate( tt.allocate(),
-					milliseconds( 90 ), test_action(v, "(90)") );
+					milliseconds( 100 ), test_action(v, "(100)") );
 			tt.activate( tt.allocate(),
-					milliseconds( 140 ), test_action(v, "(140)") );
+					milliseconds( 170 ), test_action(v, "(170)") );
 
 			std::this_thread::sleep_for( milliseconds( 200 ) );
 
 			tt.shutdown_and_join();
 
-			UT_CHECK_EQ( v, "(20)(40)(60)(80)(90)(100)(120)(140)" );
+			UT_CHECK_EQ( v, "(20)(40)(60)(80)(100)(120)(150)(170)" );
 		},
 		1,
 		"several_single_shots" );

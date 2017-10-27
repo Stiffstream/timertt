@@ -37,7 +37,7 @@ UT_UNIT_TEST( execution_order )
 			for( auto i : src )
 				tt.activate(
 						milliseconds( 300 ) + milliseconds( i ),
-						[&dest, i, &tt] () {
+						[&dest, i] () {
 							dest.push_back( i );
 						} );
 
