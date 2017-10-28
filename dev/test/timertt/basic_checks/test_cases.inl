@@ -48,6 +48,35 @@ UT_UNIT_TEST( schedule_when_not_started )
 					[]() {} ) );
 }
 
+UT_UNIT_TEST( timer_holder )
+{
+	run_with_time_limit(
+		[]()
+		{
+			timer_thread_t tt;
+
+			tt.start();
+
+			std::string v;
+
+			UT_CHECK_EQ( true, tt.empty() );
+
+			// timer_holder name must be public.
+			timer_thread_t::timer_holder id = tt.allocate();
+
+			tt.activate( id,
+					milliseconds( 20 ), [&v]() { v = "hello"; } );
+			UT_CHECK_EQ( false, tt.empty() );
+
+			std::this_thread::sleep_for( milliseconds( 100 ) );
+
+			UT_CHECK_EQ( v, "hello" );
+			UT_CHECK_EQ( true, tt.empty() );
+		},
+		1,
+		"timer_holder" );
+}
+
 UT_UNIT_TEST( single_shot )
 {
 	run_with_time_limit(
@@ -573,6 +602,7 @@ int main()
 {
 	UT_RUN_UNIT_TEST( no_demands )
 	UT_RUN_UNIT_TEST( schedule_when_not_started )
+	UT_RUN_UNIT_TEST( timer_holder )
 	UT_RUN_UNIT_TEST( single_shot )
 	UT_RUN_UNIT_TEST( single_shot_scoped )
 	UT_RUN_UNIT_TEST( single_periodic )

@@ -2656,9 +2656,6 @@ class basic_methods_impl_mixin
 	using mixin_type = typename mixin_selector<
 			typename Engine::thread_safety, Consumer >::type;
 
-	//! Shorthand for timer objects' smart pointer.
-	using timer_holder = timer_object_holder< typename Engine::thread_safety >;
-
 public :
 	/*!
 	 * \brief A typedef for thread safety type from Engine.
@@ -2673,6 +2670,13 @@ public :
 
 	//! An alias for scoped timer objects.
 	using scoped_timer_object = typename Engine::scoped_timer_object;
+
+	//! Shorthand for timer objects' smart pointer.
+	/*!
+	 * \note
+	 * Since v.1.2.1 it is a public type name.
+	 */
+	using timer_holder = timer_object_holder< typename Engine::thread_safety >;
 
 	//! Constructor with all parameters.
 	template< typename... Args >

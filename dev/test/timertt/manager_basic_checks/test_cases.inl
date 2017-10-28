@@ -28,6 +28,35 @@ total_timers( const timertt::timer_quantities & q )
 	return q.m_single_shot_count + q.m_periodic_count;
 }
 
+UT_UNIT_TEST( timer_holder )
+{
+	run_with_time_limit(
+		[]()
+		{
+			timer_manager_t tt;
+
+			std::string v;
+
+			// timer_holder name must be public.
+			timer_manager_t::timer_holder id = tt.allocate();
+			tt.activate( id,
+					milliseconds( 20 ), [&v]() { v = "hello"; } );
+
+			UT_CHECK_EQ( 1u, total_timers( tt.get_timer_quantities() ) );
+			UT_CHECK_EQ( 1u, tt.get_timer_quantities().m_single_shot_count );
+			UT_CHECK_EQ( 0u, tt.get_timer_quantities().m_periodic_count );
+
+			std::this_thread::sleep_for( milliseconds( 100 ) );
+
+			tt.process_expired_timers();
+
+			UT_CHECK_EQ( 0u, total_timers( tt.get_timer_quantities() ) );
+			UT_CHECK_EQ( v, "hello" );
+		},
+		1,
+		"timer_holder" );
+}
+
 UT_UNIT_TEST( single_shot )
 {
 	run_with_time_limit(
@@ -503,6 +532,7 @@ UT_UNIT_TEST( reset_test )
 
 int main()
 {
+	UT_RUN_UNIT_TEST( timer_holder )
 	UT_RUN_UNIT_TEST( single_shot )
 	UT_RUN_UNIT_TEST( single_shot_scoped )
 	UT_RUN_UNIT_TEST( single_periodic )
