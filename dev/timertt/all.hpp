@@ -902,26 +902,63 @@ public :
 		// It is an active timer now.
 		wheel_timer->m_status = timer_status::active;
 
-		// Calculate the demand position in the wheel.
-		set_position_in_the_wheel(
-				wheel_timer,
-				duration_to_ticks( pause ) );
-
-		// Special calculations for the periodic demand.
-		if( monotonic_clock::duration::zero() != period )
-			wheel_timer->m_period = duration_to_ticks( period );
-		else
-			wheel_timer->m_period = 0;
-
-		insert_demand_to_wheel( wheel_timer );
-
-		// Count of timers changed.
-		this->inc_timer_count( wheel_timer->kind() );
+		perform_insertion_info_wheel( wheel_timer, pause, period );
 
 		// If wheel was empty and this is the first timer added
 		// the value of timer_count must be exactly 1.
 		return 1 == this->m_timer_quantities.m_single_shot_count +
 				this->m_timer_quantities.m_periodic_count;
+	}
+
+//FIXME: document this!
+//NOTE: movement of timer_action shouldn't throw!
+	template< class Duration_1, class Duration_2 >
+	bool
+	reschedule(
+		//! Timer to be rescheduled. Must be in activated or deactivated state.
+		timer_object_holder< Thread_Safety > timer,
+		//! Pause for timer execution.
+		Duration_1 pause,
+		//! Repetition period.
+		//! If <tt>Duration_2::zero() == period</tt> then timer will be
+		//! single-shot.
+		Duration_2 period,
+		//! Action for the timer.
+		timer_action action )
+	{
+		auto * wheel_timer = timer.template cast_to< timer_type >();
+		// If timer is deactivated the usual activation logic can be used.
+		if( timer_status::deactivated == wheel_timer->m_status )
+			return this->activate(
+					std::move(timer), pause, period, std::move(action) );
+
+		else if( timer_status::active != wheel_timer->m_status )
+		{
+			// Timer which is in processing now can't be reactivated.
+			throw std::runtime_error( "timer is in processing now, "
+					"it can't be rescheduled" );
+		}
+
+		// Timer must be removed from the wheel first.
+		this->remove_timer_from_wheel( wheel_timer );
+		this->dec_timer_count( wheel_timer->kind() );
+
+		// If this assigment throws then we must deactivate the timer.
+		try
+		{
+			wheel_timer->m_action.assign( std::move(action) );
+		}
+		catch(...)
+		{
+			wheel_timer->m_status = timer_status::deactivated;
+			timer_object< Thread_Safety >::decrement_references( wheel_timer );
+			// Exception must be rethrown;
+			throw;
+		}
+
+		this->perform_insertion_info_wheel( wheel_timer, pause, period );
+
+		return false;
 	}
 
 	//! Deactivate timer and remove it from the wheel.
@@ -1137,6 +1174,48 @@ private :
 	{
 		if( timer_status::deactivated != timer->m_status )
 			throw std::runtime_error( "timer is not in 'deactivated' state" );
+	}
+
+	/*!
+	 * \brief Perform insertion of a timer into wheel data structure.
+	 *
+	 * This method added to remove the duplication of code in
+	 * activate() and reschedule() methods.
+	 *
+	 * \note
+	 * This method doesn't change reference count to timer object.
+	 *
+	 * \since
+	 * v.1.2.1
+	 */
+	template< class Duration_1, class Duration_2 >
+	void
+	perform_insertion_info_wheel(
+		//! Timer to be inserted.
+		timer_type * wheel_timer,
+		//! Pause for timer execution.
+		Duration_1 pause,
+		//! Repetition period.
+		//! If <tt>Duration_2::zero() == period</tt> then timer will be
+		//! single-shot.
+		Duration_2 period )
+	{
+		// Calculate the demand position in the wheel.
+		this->set_position_in_the_wheel(
+				wheel_timer,
+				duration_to_ticks( pause ) );
+
+		// Special calculations for the periodic demand.
+		if( monotonic_clock::duration::zero() != period )
+			wheel_timer->m_period = duration_to_ticks( period );
+		else
+			wheel_timer->m_period = 0;
+
+		// Timer now can be reinserted into the wheel.
+		this->insert_demand_to_wheel( wheel_timer );
+
+		// Count of timers changed.
+		this->inc_timer_count( wheel_timer->kind() );
 	}
 
 	/*!
@@ -2722,6 +2801,32 @@ public :
 				std::move( action ) );
 	}
 
+//FIXME: document this!
+	//! Activate timer and schedule it for execution.
+	/*!
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is already activated.
+	 *
+	 * \tparam Duration_1 actual type which represents time duration.
+	 */
+	template< class Duration_1 >
+	void
+	reschedule(
+		//! Timer to be rescheduled.
+		timer_holder timer,
+		//! Pause for timer execution.
+		Duration_1 pause,
+		//! Action for the timer.
+		timer_action action )
+	{
+		reschedule(
+				std::move( timer ),
+				pause,
+				monotonic_clock::duration::zero(),
+				std::move( action ) );
+	}
+
 	//! Activate a scoped timer and schedule it for execution.
 	/*!
 	 *
@@ -2746,10 +2851,7 @@ public :
 		//! Action for the timer.
 		timer_action action )
 	{
-		this->activate( 
-			timer_holder{timer},
-			std::move(pause),
-			std::move(action) );
+		this->activate( timer_holder{timer}, pause, action );
 	}
 
 	//! Activate timer and schedule it for execution.
@@ -2808,6 +2910,39 @@ public :
 			this->notify();
 	}
 
+//FIXME: document this!
+	//! Activate timer and schedule it for execution.
+	/*!
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is already activated.
+	 *
+	 * \tparam Duration_1 actual type which represents time duration.
+	 * \tparam Duration_2 actual type which represents time duration.
+	 */
+	template< class Duration_1, class Duration_2 >
+	void
+	reschedule(
+		//! Timer to be activated.
+		timer_holder timer,
+		//! Pause for timer execution.
+		Duration_1 pause,
+		//! Repetition period.
+		//! If <tt>Duration_2::zero() == period</tt> then timer will be
+		//! single-shot.
+		Duration_2 period,
+		//! Action for the timer.
+		timer_action action )
+	{
+		typename mixin_type::lock_guard locker{ *this };
+
+		this->ensure_started();
+
+		if( m_engine.reschedule(
+				std::move( timer ), pause, period, std::move( action ) ) )
+			this->notify();
+	}
+
 	//! Activate a scoped timer and schedule it for execution.
 	/*!
 	 *
@@ -2837,10 +2972,7 @@ public :
 		//! Action for the timer.
 		timer_action action )
 	{
-		this->activate( timer_holder{timer},
-				std::move(pause),
-				std::move(period),
-				std::move(action) );
+		this->activate( timer_holder{timer}, pause, period, std::move(action) );
 	}
 
 	//! Activate timer and schedule it for execution.
