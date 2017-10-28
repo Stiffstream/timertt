@@ -931,7 +931,6 @@ public :
 		if( timer_status::deactivated == wheel_timer->m_status )
 			return this->activate(
 					std::move(timer), pause, period, std::move(action) );
-
 		else if( timer_status::active != wheel_timer->m_status )
 		{
 			// Timer which is in processing now can't be reactivated.
@@ -1636,6 +1635,73 @@ public :
 		return list_timer == m_head;
 	}
 
+//FIXME: document this!
+	//! Activate timer and schedule it for execution.
+	/*!
+	 *
+	 * \return true if the new timer is the first timer in the list.
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is already activated.
+	 *
+	 * \tparam Duration_1 actual type which represents time duration.
+	 * \tparam Duration_2 actual type which represents time duration.
+	 */
+	template< class Duration_1, class Duration_2 >
+	bool
+	reschedule(
+		//! Timer to be rescheduled.
+		timer_object_holder< Thread_Safety > timer,
+		//! Pause for timer execution.
+		Duration_1 pause,
+		//! Repetition period.
+		//! If <tt>Duration_2::zero() == period</tt> then timer will be
+		//! single-shot.
+		Duration_2 period,
+		//! Action for the timer.
+		timer_action action )
+	{
+		auto list_timer = timer.template cast_to< timer_type >();
+		// If timer is deactivated the usual activation logic can be used.
+		if( timer_status::deactivated == list_timer->m_status )
+			return this->activate(
+					std::move(timer), pause, period, std::move(action) );
+		else if( timer_status::active != list_timer->m_status )
+		{
+			// Timer which is in processing now can't be reactivated.
+			throw std::runtime_error( "timer is in processing now, "
+					"it can't be rescheduled" );
+		}
+
+		// Timer must be removed from the list first.
+		this->remove_timer_from_list( list_timer );
+		this->dec_timer_count( list_timer->kind() );
+
+		// Timer object must be correctly (re)initialized.
+		// If this assigment throws then we must deactivate the timer.
+		try
+		{
+			list_timer->m_action.assign( std::move(action) );
+		}
+		catch(...)
+		{
+			list_timer->m_status = timer_status::deactivated;
+			timer_object< Thread_Safety >::decrement_references( list_timer );
+			// Exception must be rethrown;
+			throw;
+		}
+		list_timer->m_when = monotonic_clock::now() + pause;
+		list_timer->m_period = std::chrono::duration_cast<
+				monotonic_clock::duration >( period );
+
+		// Updated timer must be placed into the list.
+		this->insert_timer_to_list( list_timer );
+		// Count of timers in the list changed.
+		this->inc_timer_count( list_timer->kind() );
+
+		return list_timer == m_head;
+	}
+
 	//! Deactivate timer and remove it from the list.
 	void
 	deactivate(
@@ -2143,6 +2209,77 @@ public :
 
 		// Timer must be taken under control.
 		timer_object< Thread_Safety >::increment_references( heap_timer );
+
+		// Timer will be marked as active during insertion into
+		// heap structure.
+		heap_add( heap_timer );
+
+		// Count of timers must be incremented.
+		this->inc_timer_count( heap_timer->kind() );
+
+		return heap_timer == heap_head();
+	}
+
+//FIXME: document this!
+	//! Activate timer and schedule it for execution.
+	/*!
+	 * \return true is new timer is a timer on the top of the heap
+	 * (has earlier expiration time).
+	 *
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is already activated.
+	 *
+	 * \tparam Duration_1 actual type which represents time duration.
+	 * \tparam Duration_2 actual type which represents time duration.
+	 */
+	template< class Duration_1, class Duration_2 >
+	bool
+	reschedule(
+		//! Timer to be rescheduled.
+		timer_object_holder< Thread_Safety > timer,
+		//! Pause for timer execution.
+		Duration_1 pause,
+		//! Repetition period.
+		//! If <tt>Duration_2::zero() == period</tt> then timer will be
+		//! single-shot.
+		Duration_2 period,
+		//! Action for the timer.
+		timer_action action )
+	{
+		auto heap_timer = timer.template cast_to< timer_type >();
+		// If timer is deactivated the usual activation logic can be used.
+		if( heap_timer->deactivated() )
+			return this->activate(
+					std::move(timer), pause, period, std::move(action) );
+		else if( heap_timer == m_timer_in_processing )
+		{
+			// Timer which is in processing now can't be reactivated.
+			throw std::runtime_error( "timer is in processing now, "
+					"it can't be rescheduled" );
+		}
+
+		// Timer must be removed from heap first.
+		heap_remove( heap_timer );
+		// Count of timers changed.
+		this->dec_timer_count( heap_timer->kind() );
+
+		// Timer object must be correctly (re)initialized.
+		// If this assigment throws then we must deactivate the timer.
+		try
+		{
+			heap_timer->m_action.assign( std::move(action) );
+		}
+		catch(...)
+		{
+			heap_timer->deactivate();
+			timer_object< Thread_Safety >::decrement_references( heap_timer );
+			// Exception must be rethrown;
+			throw;
+		}
+
+		heap_timer->m_when = monotonic_clock::now() + pause;
+		heap_timer->m_period = std::chrono::duration_cast<
+				monotonic_clock::duration >( period );
 
 		// Timer will be marked as active during insertion into
 		// heap structure.
