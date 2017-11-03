@@ -910,8 +910,38 @@ public :
 				this->m_timer_quantities.m_periodic_count;
 	}
 
-//FIXME: document this!
-//NOTE: movement of timer_action shouldn't throw!
+	/*!
+	 * \brief Perform an attempt to reschedule a timer.
+	 *
+	 * Before v.1.2.1 there was just one way to reschedule a timer:
+	 * method deactivate() must be called first and then method
+	 * activate() must be called for the same timer. This approach is
+	 * not fast because in the case of thread-safe engines it requires
+	 * two operations on a mutex.
+	 *
+	 * Since v.1.2.1 there is a reschedule() method which does deactivation
+	 * of a timer (if it is active) and then new activation of this timer.
+	 * All actions are performed by using just one operation on a mutex.
+	 *
+	 * \note
+	 * This operation can fail if the timer to be rescheduled is in processing.
+	 * Because of that it is recommended to use such operation for
+	 * timer_managers only. But even with timer_managers this operation
+	 * should be used with care.
+	 *
+	 * \attention
+	 * It move operator for a timer_action throws then timer will be
+	 * deactivated. The state for a timer_action itself will be unknown.
+	 * 
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is in processing right now.
+	 *
+	 * \tparam Duration_1 actual type which represents time duration.
+	 * \tparam Duration_2 actual type which represents time duration.
+	 *
+	 * \since
+	 * v.1.2.1
+	 */
 	template< class Duration_1, class Duration_2 >
 	bool
 	reschedule(
@@ -1635,17 +1665,37 @@ public :
 		return list_timer == m_head;
 	}
 
-//FIXME: document this!
-	//! Activate timer and schedule it for execution.
 	/*!
+	 * \brief Perform an attempt to reschedule a timer.
 	 *
-	 * \return true if the new timer is the first timer in the list.
+	 * Before v.1.2.1 there was just one way to reschedule a timer:
+	 * method deactivate() must be called first and then method
+	 * activate() must be called for the same timer. This approach is
+	 * not fast because in the case of thread-safe engines it requires
+	 * two operations on a mutex.
 	 *
+	 * Since v.1.2.1 there is a reschedule() method which does deactivation
+	 * of a timer (if it is active) and then new activation of this timer.
+	 * All actions are performed by using just one operation on a mutex.
+	 *
+	 * \note
+	 * This operation can fail if the timer to be rescheduled is in processing.
+	 * Because of that it is recommended to use such operation for
+	 * timer_managers only. But even with timer_managers this operation
+	 * should be used with care.
+	 *
+	 * \attention
+	 * It move operator for a timer_action throws then timer will be
+	 * deactivated. The state for a timer_action itself will be unknown.
+	 * 
 	 * \throw std::exception If timer thread is not started.
-	 * \throw std::exception If \a timer is already activated.
+	 * \throw std::exception If \a timer is in processing right now.
 	 *
 	 * \tparam Duration_1 actual type which represents time duration.
 	 * \tparam Duration_2 actual type which represents time duration.
+	 *
+	 * \since
+	 * v.1.2.1
 	 */
 	template< class Duration_1, class Duration_2 >
 	bool
@@ -2220,17 +2270,37 @@ public :
 		return heap_timer == heap_head();
 	}
 
-//FIXME: document this!
-	//! Activate timer and schedule it for execution.
 	/*!
-	 * \return true is new timer is a timer on the top of the heap
-	 * (has earlier expiration time).
+	 * \brief Perform an attempt to reschedule a timer.
 	 *
+	 * Before v.1.2.1 there was just one way to reschedule a timer:
+	 * method deactivate() must be called first and then method
+	 * activate() must be called for the same timer. This approach is
+	 * not fast because in the case of thread-safe engines it requires
+	 * two operations on a mutex.
+	 *
+	 * Since v.1.2.1 there is a reschedule() method which does deactivation
+	 * of a timer (if it is active) and then new activation of this timer.
+	 * All actions are performed by using just one operation on a mutex.
+	 *
+	 * \note
+	 * This operation can fail if the timer to be rescheduled is in processing.
+	 * Because of that it is recommended to use such operation for
+	 * timer_managers only. But even with timer_managers this operation
+	 * should be used with care.
+	 *
+	 * \attention
+	 * It move operator for a timer_action throws then timer will be
+	 * deactivated. The state for a timer_action itself will be unknown.
+	 * 
 	 * \throw std::exception If timer thread is not started.
-	 * \throw std::exception If \a timer is already activated.
+	 * \throw std::exception If \a timer is in processing right now.
 	 *
 	 * \tparam Duration_1 actual type which represents time duration.
 	 * \tparam Duration_2 actual type which represents time duration.
+	 *
+	 * \since
+	 * v.1.2.1
 	 */
 	template< class Duration_1, class Duration_2 >
 	bool
@@ -2938,14 +3008,36 @@ public :
 				std::move( action ) );
 	}
 
-//FIXME: document this!
-	//! Activate timer and schedule it for execution.
 	/*!
+	 * \brief Perform an attempt to reschedule a timer.
 	 *
+	 * Before v.1.2.1 there was just one way to reschedule a timer:
+	 * method deactivate() must be called first and then method
+	 * activate() must be called for the same timer. This approach is
+	 * not fast because in the case of thread-safe engines it requires
+	 * two operations on a mutex.
+	 *
+	 * Since v.1.2.1 there is a reschedule() method which does deactivation
+	 * of a timer (if it is active) and then new activation of this timer.
+	 * All actions are performed by using just one operation on a mutex.
+	 *
+	 * \note
+	 * This operation can fail if the timer to be rescheduled is in processing.
+	 * Because of that it is recommended to use such operation for
+	 * timer_managers only. But even with timer_managers this operation
+	 * should be used with care.
+	 *
+	 * \attention
+	 * It move operator for a timer_action throws then timer will be
+	 * deactivated. The state for a timer_action itself will be unknown.
+	 * 
 	 * \throw std::exception If timer thread is not started.
-	 * \throw std::exception If \a timer is already activated.
+	 * \throw std::exception If \a timer is in processing right now.
 	 *
 	 * \tparam Duration_1 actual type which represents time duration.
+	 *
+	 * \since
+	 * v.1.2.1
 	 */
 	template< class Duration_1 >
 	void
@@ -3047,15 +3139,37 @@ public :
 			this->notify();
 	}
 
-//FIXME: document this!
-	//! Activate timer and schedule it for execution.
 	/*!
+	 * \brief Perform an attempt to reschedule a timer.
 	 *
+	 * Before v.1.2.1 there was just one way to reschedule a timer:
+	 * method deactivate() must be called first and then method
+	 * activate() must be called for the same timer. This approach is
+	 * not fast because in the case of thread-safe engines it requires
+	 * two operations on a mutex.
+	 *
+	 * Since v.1.2.1 there is a reschedule() method which does deactivation
+	 * of a timer (if it is active) and then new activation of this timer.
+	 * All actions are performed by using just one operation on a mutex.
+	 *
+	 * \note
+	 * This operation can fail if the timer to be rescheduled is in processing.
+	 * Because of that it is recommended to use such operation for
+	 * timer_managers only. But even with timer_managers this operation
+	 * should be used with care.
+	 *
+	 * \attention
+	 * It move operator for a timer_action throws then timer will be
+	 * deactivated. The state for a timer_action itself will be unknown.
+	 * 
 	 * \throw std::exception If timer thread is not started.
-	 * \throw std::exception If \a timer is already activated.
+	 * \throw std::exception If \a timer is in processing right now.
 	 *
 	 * \tparam Duration_1 actual type which represents time duration.
 	 * \tparam Duration_2 actual type which represents time duration.
+	 *
+	 * \since
+	 * v.1.2.1
 	 */
 	template< class Duration_1, class Duration_2 >
 	void
