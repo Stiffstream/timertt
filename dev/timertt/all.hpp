@@ -30,6 +30,33 @@
 #include <vector>
 
 /*!
+ * \brief The current version of timertt.
+ *
+ * Please note that this macro was added only in version 1.2.1.
+ * It means that it is better to check presense of TIMERTT_VERSION and
+ * only then try to check its value:
+ * \code
+ * #include <timertt/all.hpp>
+ *
+ * #if defined(TIMERTT_VERSION)
+ * 	#if TIMERTT_VERSION > 1002002
+ * 	#endif
+ * #endif
+ * \endcode
+ *
+ * The value of TIMERTT_VERSION has YXXXZZZ format in decimal. For
+ * example: 1002001 or 1003014. 'Y' means the major version number
+ * (e.g. 1 for 1.2.1), 'XXX' means minor version number
+ * (e.g. 002 for 1.2.1) and 'ZZZ' means patch number
+ * (e.g. 001 for 1.2.1). It means that version 1.2.1 will be
+ * represented as 1002001 and 1.3.14 will be represented as 1003014.
+ *
+ * \since
+ * v.1.2.1
+ */
+#define TIMERTT_VERSION 1002001u
+
+/*!
  * \brief Top-level project's namespace.
  */
 namespace timertt
