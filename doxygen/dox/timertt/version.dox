@@ -1,6 +1,15 @@
 /*!
  * \page timertt_version timertt Version History
  *
+ * \section timertt_version_1_2_1 1.2.1
+ *
+ * Version macro TIMERTT_VERSION is added.
+ *
+ * New method `reschedule` is added to timer threads and timer managers.
+ * This method reduces the cost of reactivating a timer. But it must
+ * be used with care because it is impossible to reactivate a timer which
+ * is in processing right now.
+ *
  * \section timertt_version_1_2_0 1.2.0
  *
  * \attention

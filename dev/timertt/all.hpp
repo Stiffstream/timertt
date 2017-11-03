@@ -30,6 +30,33 @@
 #include <vector>
 
 /*!
+ * \brief The current version of timertt.
+ *
+ * Please note that this macro was added only in version 1.2.1.
+ * It means that it is better to check presense of TIMERTT_VERSION and
+ * only then try to check its value:
+ * \code
+ * #include <timertt/all.hpp>
+ *
+ * #if defined(TIMERTT_VERSION)
+ * 	#if TIMERTT_VERSION > 1002002
+ * 	#endif
+ * #endif
+ * \endcode
+ *
+ * The value of TIMERTT_VERSION has YXXXZZZ format in decimal. For
+ * example: 1002001 or 1003014. 'Y' means the major version number
+ * (e.g. 1 for 1.2.1), 'XXX' means minor version number
+ * (e.g. 002 for 1.2.1) and 'ZZZ' means patch number
+ * (e.g. 001 for 1.2.1). It means that version 1.2.1 will be
+ * represented as 1002001 and 1.3.14 will be represented as 1003014.
+ *
+ * \since
+ * v.1.2.1
+ */
+#define TIMERTT_VERSION 1002001u
+
+/*!
  * \brief Top-level project's namespace.
  */
 namespace timertt
@@ -902,26 +929,92 @@ public :
 		// It is an active timer now.
 		wheel_timer->m_status = timer_status::active;
 
-		// Calculate the demand position in the wheel.
-		set_position_in_the_wheel(
-				wheel_timer,
-				duration_to_ticks( pause ) );
-
-		// Special calculations for the periodic demand.
-		if( monotonic_clock::duration::zero() != period )
-			wheel_timer->m_period = duration_to_ticks( period );
-		else
-			wheel_timer->m_period = 0;
-
-		insert_demand_to_wheel( wheel_timer );
-
-		// Count of timers changed.
-		this->inc_timer_count( wheel_timer->kind() );
+		perform_insertion_info_wheel( wheel_timer, pause, period );
 
 		// If wheel was empty and this is the first timer added
 		// the value of timer_count must be exactly 1.
 		return 1 == this->m_timer_quantities.m_single_shot_count +
 				this->m_timer_quantities.m_periodic_count;
+	}
+
+	/*!
+	 * \brief Perform an attempt to reschedule a timer.
+	 *
+	 * Before v.1.2.1 there was just one way to reschedule a timer:
+	 * method deactivate() must be called first and then method
+	 * activate() must be called for the same timer. This approach is
+	 * not fast because in the case of thread-safe engines it requires
+	 * two operations on a mutex.
+	 *
+	 * Since v.1.2.1 there is a reschedule() method which does deactivation
+	 * of a timer (if it is active) and then new activation of this timer.
+	 * All actions are performed by using just one operation on a mutex.
+	 *
+	 * \note
+	 * This operation can fail if the timer to be rescheduled is in processing.
+	 * Because of that it is recommended to use such operation for
+	 * timer_managers only. But even with timer_managers this operation
+	 * should be used with care.
+	 *
+	 * \attention
+	 * It move operator for a timer_action throws then timer will be
+	 * deactivated. The state for a timer_action itself will be unknown.
+	 * 
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is in processing right now.
+	 *
+	 * \tparam Duration_1 actual type which represents time duration.
+	 * \tparam Duration_2 actual type which represents time duration.
+	 *
+	 * \since
+	 * v.1.2.1
+	 */
+	template< class Duration_1, class Duration_2 >
+	bool
+	reschedule(
+		//! Timer to be rescheduled. Must be in activated or deactivated state.
+		timer_object_holder< Thread_Safety > timer,
+		//! Pause for timer execution.
+		Duration_1 pause,
+		//! Repetition period.
+		//! If <tt>Duration_2::zero() == period</tt> then timer will be
+		//! single-shot.
+		Duration_2 period,
+		//! Action for the timer.
+		timer_action action )
+	{
+		auto * wheel_timer = timer.template cast_to< timer_type >();
+		// If timer is deactivated the usual activation logic can be used.
+		if( timer_status::deactivated == wheel_timer->m_status )
+			return this->activate(
+					std::move(timer), pause, period, std::move(action) );
+		else if( timer_status::active != wheel_timer->m_status )
+		{
+			// Timer which is in processing now can't be reactivated.
+			throw std::runtime_error( "timer is in processing now, "
+					"it can't be rescheduled" );
+		}
+
+		// Timer must be removed from the wheel first.
+		this->remove_timer_from_wheel( wheel_timer );
+		this->dec_timer_count( wheel_timer->kind() );
+
+		// If this assigment throws then we must deactivate the timer.
+		try
+		{
+			wheel_timer->m_action.assign( std::move(action) );
+		}
+		catch(...)
+		{
+			wheel_timer->m_status = timer_status::deactivated;
+			timer_object< Thread_Safety >::decrement_references( wheel_timer );
+			// Exception must be rethrown;
+			throw;
+		}
+
+		this->perform_insertion_info_wheel( wheel_timer, pause, period );
+
+		return false;
 	}
 
 	//! Deactivate timer and remove it from the wheel.
@@ -1137,6 +1230,48 @@ private :
 	{
 		if( timer_status::deactivated != timer->m_status )
 			throw std::runtime_error( "timer is not in 'deactivated' state" );
+	}
+
+	/*!
+	 * \brief Perform insertion of a timer into wheel data structure.
+	 *
+	 * This method added to remove the duplication of code in
+	 * activate() and reschedule() methods.
+	 *
+	 * \note
+	 * This method doesn't change reference count to timer object.
+	 *
+	 * \since
+	 * v.1.2.1
+	 */
+	template< class Duration_1, class Duration_2 >
+	void
+	perform_insertion_info_wheel(
+		//! Timer to be inserted.
+		timer_type * wheel_timer,
+		//! Pause for timer execution.
+		Duration_1 pause,
+		//! Repetition period.
+		//! If <tt>Duration_2::zero() == period</tt> then timer will be
+		//! single-shot.
+		Duration_2 period )
+	{
+		// Calculate the demand position in the wheel.
+		this->set_position_in_the_wheel(
+				wheel_timer,
+				duration_to_ticks( pause ) );
+
+		// Special calculations for the periodic demand.
+		if( monotonic_clock::duration::zero() != period )
+			wheel_timer->m_period = duration_to_ticks( period );
+		else
+			wheel_timer->m_period = 0;
+
+		// Timer now can be reinserted into the wheel.
+		this->insert_demand_to_wheel( wheel_timer );
+
+		// Count of timers changed.
+		this->inc_timer_count( wheel_timer->kind() );
 	}
 
 	/*!
@@ -1551,6 +1686,93 @@ public :
 		list_timer->m_status = timer_status::active;
 
 		insert_timer_to_list( list_timer );
+		// Count of timers in the list changed.
+		this->inc_timer_count( list_timer->kind() );
+
+		return list_timer == m_head;
+	}
+
+	/*!
+	 * \brief Perform an attempt to reschedule a timer.
+	 *
+	 * Before v.1.2.1 there was just one way to reschedule a timer:
+	 * method deactivate() must be called first and then method
+	 * activate() must be called for the same timer. This approach is
+	 * not fast because in the case of thread-safe engines it requires
+	 * two operations on a mutex.
+	 *
+	 * Since v.1.2.1 there is a reschedule() method which does deactivation
+	 * of a timer (if it is active) and then new activation of this timer.
+	 * All actions are performed by using just one operation on a mutex.
+	 *
+	 * \note
+	 * This operation can fail if the timer to be rescheduled is in processing.
+	 * Because of that it is recommended to use such operation for
+	 * timer_managers only. But even with timer_managers this operation
+	 * should be used with care.
+	 *
+	 * \attention
+	 * It move operator for a timer_action throws then timer will be
+	 * deactivated. The state for a timer_action itself will be unknown.
+	 * 
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is in processing right now.
+	 *
+	 * \tparam Duration_1 actual type which represents time duration.
+	 * \tparam Duration_2 actual type which represents time duration.
+	 *
+	 * \since
+	 * v.1.2.1
+	 */
+	template< class Duration_1, class Duration_2 >
+	bool
+	reschedule(
+		//! Timer to be rescheduled.
+		timer_object_holder< Thread_Safety > timer,
+		//! Pause for timer execution.
+		Duration_1 pause,
+		//! Repetition period.
+		//! If <tt>Duration_2::zero() == period</tt> then timer will be
+		//! single-shot.
+		Duration_2 period,
+		//! Action for the timer.
+		timer_action action )
+	{
+		auto list_timer = timer.template cast_to< timer_type >();
+		// If timer is deactivated the usual activation logic can be used.
+		if( timer_status::deactivated == list_timer->m_status )
+			return this->activate(
+					std::move(timer), pause, period, std::move(action) );
+		else if( timer_status::active != list_timer->m_status )
+		{
+			// Timer which is in processing now can't be reactivated.
+			throw std::runtime_error( "timer is in processing now, "
+					"it can't be rescheduled" );
+		}
+
+		// Timer must be removed from the list first.
+		this->remove_timer_from_list( list_timer );
+		this->dec_timer_count( list_timer->kind() );
+
+		// Timer object must be correctly (re)initialized.
+		// If this assigment throws then we must deactivate the timer.
+		try
+		{
+			list_timer->m_action.assign( std::move(action) );
+		}
+		catch(...)
+		{
+			list_timer->m_status = timer_status::deactivated;
+			timer_object< Thread_Safety >::decrement_references( list_timer );
+			// Exception must be rethrown;
+			throw;
+		}
+		list_timer->m_when = monotonic_clock::now() + pause;
+		list_timer->m_period = std::chrono::duration_cast<
+				monotonic_clock::duration >( period );
+
+		// Updated timer must be placed into the list.
+		this->insert_timer_to_list( list_timer );
 		// Count of timers in the list changed.
 		this->inc_timer_count( list_timer->kind() );
 
@@ -2064,6 +2286,97 @@ public :
 
 		// Timer must be taken under control.
 		timer_object< Thread_Safety >::increment_references( heap_timer );
+
+		// Timer will be marked as active during insertion into
+		// heap structure.
+		heap_add( heap_timer );
+
+		// Count of timers must be incremented.
+		this->inc_timer_count( heap_timer->kind() );
+
+		return heap_timer == heap_head();
+	}
+
+	/*!
+	 * \brief Perform an attempt to reschedule a timer.
+	 *
+	 * Before v.1.2.1 there was just one way to reschedule a timer:
+	 * method deactivate() must be called first and then method
+	 * activate() must be called for the same timer. This approach is
+	 * not fast because in the case of thread-safe engines it requires
+	 * two operations on a mutex.
+	 *
+	 * Since v.1.2.1 there is a reschedule() method which does deactivation
+	 * of a timer (if it is active) and then new activation of this timer.
+	 * All actions are performed by using just one operation on a mutex.
+	 *
+	 * \note
+	 * This operation can fail if the timer to be rescheduled is in processing.
+	 * Because of that it is recommended to use such operation for
+	 * timer_managers only. But even with timer_managers this operation
+	 * should be used with care.
+	 *
+	 * \attention
+	 * It move operator for a timer_action throws then timer will be
+	 * deactivated. The state for a timer_action itself will be unknown.
+	 * 
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is in processing right now.
+	 *
+	 * \tparam Duration_1 actual type which represents time duration.
+	 * \tparam Duration_2 actual type which represents time duration.
+	 *
+	 * \since
+	 * v.1.2.1
+	 */
+	template< class Duration_1, class Duration_2 >
+	bool
+	reschedule(
+		//! Timer to be rescheduled.
+		timer_object_holder< Thread_Safety > timer,
+		//! Pause for timer execution.
+		Duration_1 pause,
+		//! Repetition period.
+		//! If <tt>Duration_2::zero() == period</tt> then timer will be
+		//! single-shot.
+		Duration_2 period,
+		//! Action for the timer.
+		timer_action action )
+	{
+		auto heap_timer = timer.template cast_to< timer_type >();
+		// If timer is deactivated the usual activation logic can be used.
+		if( heap_timer->deactivated() )
+			return this->activate(
+					std::move(timer), pause, period, std::move(action) );
+		else if( heap_timer == m_timer_in_processing )
+		{
+			// Timer which is in processing now can't be reactivated.
+			throw std::runtime_error( "timer is in processing now, "
+					"it can't be rescheduled" );
+		}
+
+		// Timer must be removed from heap first.
+		heap_remove( heap_timer );
+		// Count of timers changed.
+		this->dec_timer_count( heap_timer->kind() );
+
+		// Timer object must be correctly (re)initialized.
+		// If this assigment throws then we must deactivate the timer.
+		try
+		{
+			heap_timer->m_action.assign( std::move(action) );
+		}
+		catch(...)
+		{
+			heap_timer->deactivate();
+			timer_object< Thread_Safety >::decrement_references( heap_timer );
+			// Exception must be rethrown;
+			throw;
+		}
+
+		heap_timer->m_when = monotonic_clock::now() + pause;
+		heap_timer->m_period = std::chrono::duration_cast<
+				monotonic_clock::duration >( period );
 
 		// Timer will be marked as active during insertion into
 		// heap structure.
@@ -2656,9 +2969,6 @@ class basic_methods_impl_mixin
 	using mixin_type = typename mixin_selector<
 			typename Engine::thread_safety, Consumer >::type;
 
-	//! Shorthand for timer objects' smart pointer.
-	using timer_holder = timer_object_holder< typename Engine::thread_safety >;
-
 public :
 	/*!
 	 * \brief A typedef for thread safety type from Engine.
@@ -2673,6 +2983,13 @@ public :
 
 	//! An alias for scoped timer objects.
 	using scoped_timer_object = typename Engine::scoped_timer_object;
+
+	//! Shorthand for timer objects' smart pointer.
+	/*!
+	 * \note
+	 * Since v.1.2.1 it is a public type name.
+	 */
+	using timer_holder = timer_object_holder< typename Engine::thread_safety >;
 
 	//! Constructor with all parameters.
 	template< typename... Args >
@@ -2718,6 +3035,54 @@ public :
 				std::move( action ) );
 	}
 
+	/*!
+	 * \brief Perform an attempt to reschedule a timer.
+	 *
+	 * Before v.1.2.1 there was just one way to reschedule a timer:
+	 * method deactivate() must be called first and then method
+	 * activate() must be called for the same timer. This approach is
+	 * not fast because in the case of thread-safe engines it requires
+	 * two operations on a mutex.
+	 *
+	 * Since v.1.2.1 there is a reschedule() method which does deactivation
+	 * of a timer (if it is active) and then new activation of this timer.
+	 * All actions are performed by using just one operation on a mutex.
+	 *
+	 * \note
+	 * This operation can fail if the timer to be rescheduled is in processing.
+	 * Because of that it is recommended to use such operation for
+	 * timer_managers only. But even with timer_managers this operation
+	 * should be used with care.
+	 *
+	 * \attention
+	 * It move operator for a timer_action throws then timer will be
+	 * deactivated. The state for a timer_action itself will be unknown.
+	 * 
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is in processing right now.
+	 *
+	 * \tparam Duration_1 actual type which represents time duration.
+	 *
+	 * \since
+	 * v.1.2.1
+	 */
+	template< class Duration_1 >
+	void
+	reschedule(
+		//! Timer to be rescheduled.
+		timer_holder timer,
+		//! Pause for timer execution.
+		Duration_1 pause,
+		//! Action for the timer.
+		timer_action action )
+	{
+		reschedule(
+				std::move( timer ),
+				pause,
+				monotonic_clock::duration::zero(),
+				std::move( action ) );
+	}
+
 	//! Activate a scoped timer and schedule it for execution.
 	/*!
 	 *
@@ -2742,10 +3107,7 @@ public :
 		//! Action for the timer.
 		timer_action action )
 	{
-		this->activate( 
-			timer_holder{timer},
-			std::move(pause),
-			std::move(action) );
+		this->activate( timer_holder{timer}, pause, action );
 	}
 
 	//! Activate timer and schedule it for execution.
@@ -2804,6 +3166,61 @@ public :
 			this->notify();
 	}
 
+	/*!
+	 * \brief Perform an attempt to reschedule a timer.
+	 *
+	 * Before v.1.2.1 there was just one way to reschedule a timer:
+	 * method deactivate() must be called first and then method
+	 * activate() must be called for the same timer. This approach is
+	 * not fast because in the case of thread-safe engines it requires
+	 * two operations on a mutex.
+	 *
+	 * Since v.1.2.1 there is a reschedule() method which does deactivation
+	 * of a timer (if it is active) and then new activation of this timer.
+	 * All actions are performed by using just one operation on a mutex.
+	 *
+	 * \note
+	 * This operation can fail if the timer to be rescheduled is in processing.
+	 * Because of that it is recommended to use such operation for
+	 * timer_managers only. But even with timer_managers this operation
+	 * should be used with care.
+	 *
+	 * \attention
+	 * It move operator for a timer_action throws then timer will be
+	 * deactivated. The state for a timer_action itself will be unknown.
+	 * 
+	 * \throw std::exception If timer thread is not started.
+	 * \throw std::exception If \a timer is in processing right now.
+	 *
+	 * \tparam Duration_1 actual type which represents time duration.
+	 * \tparam Duration_2 actual type which represents time duration.
+	 *
+	 * \since
+	 * v.1.2.1
+	 */
+	template< class Duration_1, class Duration_2 >
+	void
+	reschedule(
+		//! Timer to be activated.
+		timer_holder timer,
+		//! Pause for timer execution.
+		Duration_1 pause,
+		//! Repetition period.
+		//! If <tt>Duration_2::zero() == period</tt> then timer will be
+		//! single-shot.
+		Duration_2 period,
+		//! Action for the timer.
+		timer_action action )
+	{
+		typename mixin_type::lock_guard locker{ *this };
+
+		this->ensure_started();
+
+		if( m_engine.reschedule(
+				std::move( timer ), pause, period, std::move( action ) ) )
+			this->notify();
+	}
+
 	//! Activate a scoped timer and schedule it for execution.
 	/*!
 	 *
@@ -2833,10 +3250,7 @@ public :
 		//! Action for the timer.
 		timer_action action )
 	{
-		this->activate( timer_holder{timer},
-				std::move(pause),
-				std::move(period),
-				std::move(action) );
+		this->activate( timer_holder{timer}, pause, period, std::move(action) );
 	}
 
 	//! Activate timer and schedule it for execution.

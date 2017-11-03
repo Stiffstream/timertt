@@ -28,6 +28,35 @@ total_timers( const timertt::timer_quantities & q )
 	return q.m_single_shot_count + q.m_periodic_count;
 }
 
+UT_UNIT_TEST( timer_holder )
+{
+	run_with_time_limit(
+		[]()
+		{
+			timer_manager_t tt;
+
+			std::string v;
+
+			// timer_holder name must be public.
+			timer_manager_t::timer_holder id = tt.allocate();
+			tt.activate( id,
+					milliseconds( 20 ), [&v]() { v = "hello"; } );
+
+			UT_CHECK_EQ( 1u, total_timers( tt.get_timer_quantities() ) );
+			UT_CHECK_EQ( 1u, tt.get_timer_quantities().m_single_shot_count );
+			UT_CHECK_EQ( 0u, tt.get_timer_quantities().m_periodic_count );
+
+			std::this_thread::sleep_for( milliseconds( 100 ) );
+
+			tt.process_expired_timers();
+
+			UT_CHECK_EQ( 0u, total_timers( tt.get_timer_quantities() ) );
+			UT_CHECK_EQ( v, "hello" );
+		},
+		1,
+		"timer_holder" );
+}
+
 UT_UNIT_TEST( single_shot )
 {
 	run_with_time_limit(
@@ -53,6 +82,112 @@ UT_UNIT_TEST( single_shot )
 		},
 		1,
 		"single_shot" );
+}
+
+UT_UNIT_TEST( single_shot_reschedule_active )
+{
+	run_with_time_limit(
+		[]()
+		{
+			timer_manager_t tt;
+
+			std::string v;
+
+			auto id = tt.allocate();
+			tt.activate( id,
+					milliseconds( 20 ), [&v]() { v = "hello"; } );
+
+			UT_CHECK_EQ( 1u, total_timers( tt.get_timer_quantities() ) );
+			UT_CHECK_EQ( 1u, tt.get_timer_quantities().m_single_shot_count );
+			UT_CHECK_EQ( 0u, tt.get_timer_quantities().m_periodic_count );
+
+			tt.reschedule( id,
+					milliseconds( 50 ), [&v]() { v = "bye"; } );
+
+			UT_CHECK_EQ( 1u, total_timers( tt.get_timer_quantities() ) );
+			UT_CHECK_EQ( 1u, tt.get_timer_quantities().m_single_shot_count );
+			UT_CHECK_EQ( 0u, tt.get_timer_quantities().m_periodic_count );
+
+			std::this_thread::sleep_for( milliseconds( 100 ) );
+
+			tt.process_expired_timers();
+
+			UT_CHECK_EQ( 0u, total_timers( tt.get_timer_quantities() ) );
+			UT_CHECK_EQ( v, "bye" );
+		},
+		1,
+		"single_shot_reschedule_active" );
+}
+
+UT_UNIT_TEST( single_shot_reschedule_passive )
+{
+	run_with_time_limit(
+		[]()
+		{
+			timer_manager_t tt;
+
+			std::string v;
+
+			auto id = tt.allocate();
+
+			UT_CHECK_EQ( 0u, total_timers( tt.get_timer_quantities() ) );
+			UT_CHECK_EQ( 0u, tt.get_timer_quantities().m_single_shot_count );
+			UT_CHECK_EQ( 0u, tt.get_timer_quantities().m_periodic_count );
+
+			tt.reschedule( id,
+					milliseconds( 50 ), [&v]() { v = "bye"; } );
+
+			UT_CHECK_EQ( 1u, total_timers( tt.get_timer_quantities() ) );
+			UT_CHECK_EQ( 1u, tt.get_timer_quantities().m_single_shot_count );
+			UT_CHECK_EQ( 0u, tt.get_timer_quantities().m_periodic_count );
+
+			std::this_thread::sleep_for( milliseconds( 100 ) );
+
+			tt.process_expired_timers();
+
+			UT_CHECK_EQ( 0u, total_timers( tt.get_timer_quantities() ) );
+			UT_CHECK_EQ( v, "bye" );
+		},
+		1,
+		"single_shot_reschedule_passive" );
+}
+
+UT_UNIT_TEST( single_shot_reschedule_inprogress )
+{
+	run_with_time_limit(
+		[]()
+		{
+			timer_manager_t tt;
+
+			std::string v;
+
+			auto id = tt.allocate();
+
+			const auto try_reschedule = [&] {
+				tt.reschedule( id, milliseconds(30), [&v]{ v = "bye"; } );
+			};
+
+			tt.activate( id,
+					milliseconds( 20 ),
+					[&]() {
+						v = "hello";
+
+						UT_CHECK_THROW( std::runtime_error, try_reschedule() );
+					} );
+
+			UT_CHECK_EQ( 1u, total_timers( tt.get_timer_quantities() ) );
+			UT_CHECK_EQ( 1u, tt.get_timer_quantities().m_single_shot_count );
+			UT_CHECK_EQ( 0u, tt.get_timer_quantities().m_periodic_count );
+
+			std::this_thread::sleep_for( milliseconds( 100 ) );
+
+			tt.process_expired_timers();
+
+			UT_CHECK_EQ( 0u, total_timers( tt.get_timer_quantities() ) );
+			UT_CHECK_EQ( v, "hello" );
+		},
+		1,
+		"single_shot_reschedule_inprogress" );
 }
 
 UT_UNIT_TEST( single_shot_scoped )
@@ -503,8 +638,12 @@ UT_UNIT_TEST( reset_test )
 
 int main()
 {
+	UT_RUN_UNIT_TEST( timer_holder )
 	UT_RUN_UNIT_TEST( single_shot )
 	UT_RUN_UNIT_TEST( single_shot_scoped )
+	UT_RUN_UNIT_TEST( single_shot_reschedule_active )
+	UT_RUN_UNIT_TEST( single_shot_reschedule_passive )
+	UT_RUN_UNIT_TEST( single_shot_reschedule_inprogress )
 	UT_RUN_UNIT_TEST( single_periodic )
 	UT_RUN_UNIT_TEST( single_periodic_scoped )
 	UT_RUN_UNIT_TEST( several_single_shots )
