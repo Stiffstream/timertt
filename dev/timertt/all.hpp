@@ -29,6 +29,17 @@
 #include <unordered_map>
 #include <vector>
 
+#if defined(_MSC_VER) && (_MSC_VER < 1900)
+	// Under VS++12 the alignment will always be 8 bytes.
+	#define TIMERTT_ALIGNAS_WORKAROUND(T) __declspec(align(8))
+
+	// VS++12 doesn't support noexcept keyword.
+	#define TIMERTT_NOEXCEPT
+#else
+	#define TIMERTT_ALIGNAS_WORKAROUND(T) alignas(T)
+	#define TIMERTT_NOEXCEPT noexcept
+#endif
+
 /*!
  * \brief The current version of timertt.
  *
@@ -54,7 +65,7 @@
  * \since
  * v.1.2.1
  */
-#define TIMERTT_VERSION 1002001u
+#define TIMERTT_VERSION 1002002u
 
 /*!
  * \brief Top-level project's namespace.
@@ -508,7 +519,7 @@ namespace details
 template<typename T>
 class buffer_allocated_object
 {
-	alignas(T) std::array<char, sizeof(T)> buffer_;
+	TIMERTT_ALIGNAS_WORKAROUND(T) std::array<char, sizeof(T)> buffer_;
 	bool allocated_{ false };
 
 	void destroy_if_allocated()
@@ -525,7 +536,7 @@ public :
 	using element_type = T;
 	using reference = typename std::add_lvalue_reference<T>::type;
 
-	buffer_allocated_object() noexcept = default;
+	buffer_allocated_object() TIMERTT_NOEXCEPT = default;
 	buffer_allocated_object(const buffer_allocated_object &) = delete;
 	buffer_allocated_object(buffer_allocated_object &&) = delete;
 
@@ -547,22 +558,22 @@ public :
 		destroy_if_allocated();
 	}
 
-	operator bool() const noexcept
+	operator bool() const TIMERTT_NOEXCEPT
 	{
 		return allocated_;
 	}
 
-	pointer get() const noexcept
+	pointer get() const TIMERTT_NOEXCEPT
 	{
 		return reinterpret_cast<pointer>(const_cast<char *>(buffer_.data()));
 	}
 
-	pointer operator->() const noexcept
+	pointer operator->() const TIMERTT_NOEXCEPT
 	{
 		return get();
 	}
 
-	reference operator*() const noexcept
+	reference operator*() const TIMERTT_NOEXCEPT
 	{
 		return *get();
 	}
