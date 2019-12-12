@@ -35,9 +35,11 @@
 
 	// VS++12 doesn't support noexcept keyword.
 	#define TIMERTT_NOEXCEPT
+	#define TIMERTT_HAS_NOEXCEPT 0
 #else
 	#define TIMERTT_ALIGNAS_WORKAROUND(T) alignas(T)
 	#define TIMERTT_NOEXCEPT noexcept
+	#define TIMERTT_HAS_NOEXCEPT 1
 #endif
 
 /*!
@@ -65,7 +67,7 @@
  * \since
  * v.1.2.1
  */
-#define TIMERTT_VERSION 1002002u
+#define TIMERTT_VERSION 1002003u
 
 /*!
  * \brief Top-level project's namespace.
@@ -502,6 +504,24 @@ struct timer_quantities
  */
 namespace details
 {
+
+#if TIMERTT_HAS_NOEXCEPT
+
+template< typename Lambda >
+void invoke_noexcept_code_block(Lambda && lambda) noexcept
+{
+	lambda();
+}
+
+#else
+
+template< typename Lambda >
+void invoke_noexcept_code_block(Lambda && lambda)
+{
+	try { lambda(); } catch(...) { std::abort(); }
+}
+
+#endif
 
 //
 // buffer_allocated_object
@@ -1482,10 +1502,14 @@ private :
 			}
 			catch( ... )
 			{
-				std::ostringstream ss;
-				ss << __FILE__ << "(" << __LINE__ 
-					<< "): an unknown exception from timer action";
-				this->m_error_logger( ss.str() );
+				// Logging should not throw exceptions.
+				invoke_noexcept_code_block( [this] {
+						std::ostringstream ss;
+						ss << __FILE__ << "(" << __LINE__ 
+							<< "): an unknown exception from timer action";
+						this->m_error_logger( ss.str() );
+					} );
+
 				std::abort();
 			}
 
@@ -2100,10 +2124,14 @@ private :
 			}
 			catch( ... )
 			{
-				std::ostringstream ss;
-				ss << __FILE__ << "(" << __LINE__ 
-					<< "): an unknown exception from timer action";
-				this->m_error_logger( ss.str() );
+				// Logging should not throw exceptions.
+				invoke_noexcept_code_block( [this] {
+						std::ostringstream ss;
+						ss << __FILE__ << "(" << __LINE__ 
+							<< "): an unknown exception from timer action";
+						this->m_error_logger( ss.str() );
+					} );
+
 				std::abort();
 			}
 
@@ -2625,10 +2653,13 @@ private :
 		}
 		catch( ... )
 		{
-			std::ostringstream ss;
-			ss << __FILE__ << "(" << __LINE__ 
-				<< "): an unknown exception from timer action";
-			this->m_error_logger( ss.str() );
+			// Logging should not throw exceptions.
+			invoke_noexcept_code_block( [this] {
+					std::ostringstream ss;
+					ss << __FILE__ << "(" << __LINE__ 
+						<< "): an unknown exception from timer action";
+					this->m_error_logger( ss.str() );
+				} );
 			std::abort();
 		}
 
