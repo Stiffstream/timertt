@@ -1482,7 +1482,7 @@ private :
 		Unique_Lock & lock,
 		//! Head of execution list.
 		//! Cannot be nullptr.
-		timer_type * head )
+		timer_type * head ) TIMERTT_NOEXCEPT
 	{
 		lock.unlock();
 
@@ -1498,7 +1498,11 @@ private :
 			}
 			catch( const std::exception & x )
 			{
-				this->m_exception_handler( x );
+				// Note this invoke_noexcept_code_block() is not needed
+				// if compiler supports noexcept.
+				invoke_noexcept_code_block( [this, &x] {
+						this->m_exception_handler( x );
+					} );
 			}
 			catch( ... )
 			{
@@ -2104,7 +2108,7 @@ private :
 		Unique_Lock & lock,
 		//! Head of execution list.
 		//! Cannot be nullptr.
-		timer_type * head )
+		timer_type * head ) TIMERTT_NOEXCEPT
 	{
 		lock.unlock();
 
@@ -2120,7 +2124,11 @@ private :
 			}
 			catch( const std::exception & x )
 			{
-				this->m_exception_handler( x );
+				// Note this invoke_noexcept_code_block() is not needed
+				// if compiler supports noexcept.
+				invoke_noexcept_code_block( [this, &x] {
+						this->m_exception_handler( x );
+					} );
 			}
 			catch( ... )
 			{
@@ -2639,7 +2647,7 @@ private :
 		//! Object lock.
 		//! This lock will be unlocked before execution of actions
 		//! and locked back after.
-		Unique_Lock & lock )
+		Unique_Lock & lock ) TIMERTT_NOEXCEPT
 	{
 		lock.unlock();
 
@@ -2649,7 +2657,11 @@ private :
 		}
 		catch( const std::exception & x )
 		{
-			this->m_exception_handler( x );
+			// Note this invoke_noexcept_code_block() is not needed
+			// if compiler supports noexcept.
+			invoke_noexcept_code_block( [this, &x] {
+					this->m_exception_handler( x );
+				} );
 		}
 		catch( ... )
 		{
