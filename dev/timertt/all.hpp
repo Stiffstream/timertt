@@ -505,6 +505,20 @@ struct timer_quantities
 namespace details
 {
 
+// NOTE: invoke_noexcept_code_block was added because some compilers
+// do not have support for noexcept (for example VC++2013). So it's impossible
+// to write code like that:
+//
+// [&]() noexcept {
+// 	some_code();
+// }();
+//
+// Instead we have to write:
+//
+// invoke_noexcept_code_block([&] {
+// 	some_code();
+// });
+//
 #if TIMERTT_HAS_NOEXCEPT
 
 template< typename Lambda >
