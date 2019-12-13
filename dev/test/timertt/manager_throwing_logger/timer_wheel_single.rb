@@ -1,0 +1,9 @@
+require 'mxx_ru/cpp'
+
+MxxRu::Cpp::exe_target {
+
+	target '_unit.test.timertt.manager_throwing_logger.timer_wheel_single'
+
+	cpp_source 'timer_wheel_single.cpp'
+}
+

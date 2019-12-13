@@ -12,6 +12,14 @@ MxxRu::Cpp::composite_target {
 	required_prj 'test/timertt/manager_basic_checks/timer_heap_single.ut.rb'
 	required_prj 'test/timertt/manager_basic_checks/timer_heap_multi.ut.rb'
 
+	required_prj 'test/timertt/manager_throwing_logger/timer_wheel_single.ut.rb'
+	required_prj 'test/timertt/manager_throwing_logger/timer_wheel_multi.ut.rb'
+
+	required_prj 'test/timertt/manager_throwing_logger/timer_list_single.ut.rb'
+	required_prj 'test/timertt/manager_throwing_logger/timer_list_multi.ut.rb'
+
+	required_prj 'test/timertt/manager_throwing_logger/timer_heap_single.ut.rb'
+	required_prj 'test/timertt/manager_throwing_logger/timer_heap_multi.ut.rb'
 
 	required_prj 'test/timertt/basic_checks/timer_wheel.ut.rb'
 	required_prj 'test/timertt/basic_checks_no_default_ctor/timer_wheel.ut.rb'
