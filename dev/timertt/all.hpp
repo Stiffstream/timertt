@@ -1996,7 +1996,7 @@ private :
 	//! Insert timer to the list.
 	/*!
 	 * Insertion starts from the tail of the list. And if \a timer
-	 * has lower timer_type::m_whan value then the last list item
+	 * has lower timer_type::m_when value then the last list item
 	 * there is an loop of searching appropriate place by going to
 	 * the head of the list.
 	 *
