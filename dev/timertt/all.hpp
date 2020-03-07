@@ -845,10 +845,11 @@ struct timer_wheel_engine_defaults
  *
  * This class uses <a href="http://www.cs.columbia.edu/~nahum/w6998/papers/ton97-timing-wheels.pdf">timer_wheel</a>
  * mechanism to work with timers.
- * This mechanism is efficient for working with big amount of timers.
- * But it requires that timer thread is working always, even in case
- * when there is no timers. Another price for timer_wheel is the
- * granularity of timer steps.
+ * This mechanism is efficient for working with big amount of timers. But this
+ * mechanism can consume some more resources when there is a small number of
+ * waiting timers. It's because there is a wakeup at every time step of the
+ * wheel, even if there is no elapsed timers for that step. Another price for
+ * timer_wheel is the granularity of timer steps.
  *
  * Timer wheel data structure consists from one fixed size vector
  * (the wheel) and several double-linked list (one list for every wheel
@@ -861,7 +862,7 @@ struct timer_wheel_engine_defaults
  *
  * \note At the beginnig of time step thread detects elapsed timers, then
  * unblocks object mutex and calls timer actors for those timers. It means
- * that actors call call timer thread object. And there won't be frequent
+ * that actors can call timer thread object. And there won't be frequent
  * mutex locking/unlocking operations for building and processing
  * list of elapsed timers. This allows to process millions of timer actor
  * per second.
@@ -2236,12 +2237,10 @@ struct timer_heap_engine_defaults
  * is growing as necessary to hold all the timers. The initial size of that
  * array can be specified in the constructor.
  *
- * \note Unlike timer_wheel and timer_list threads this thread unlock and
- * lock its mutex for processing every timers. It means that processing
- * speed of this thread will be slower then for timer_wheel or
- * timer_list threads. But this type of thread doesn't consume resources
- * when there is no timers (unlike timer_wheel thread). And has very
- * efficient activation and deactivation procedures (unlike timer_list
+ * \note Unlike timer_wheel and timer_list threads this thread unlock and lock
+ * its mutex for processing every timers. It means that processing speed of
+ * this thread will be slower then for timer_wheel or timer_list threads. And
+ * has very efficient activation and deactivation procedures (unlike timer_list
  * thread).
  *
  * \tparam Thread_Safety Thread-safety indicator.
