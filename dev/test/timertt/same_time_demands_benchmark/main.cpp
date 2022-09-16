@@ -33,9 +33,9 @@ parse_args( int argc, char ** argv )
 	cfg_t result;
 
 	char ** current = &argv[ 1 ];
-	char ** last = &argv[ argc ];
+	char ** last_arg = &argv[ argc ];
 
-	while( current != last )
+	while( current != last_arg )
 	{
 		if( 0 == std::strcmp( "-h", *current ) )
 		{
@@ -45,7 +45,7 @@ parse_args( int argc, char ** argv )
 		else if( 0 == std::strcmp( "-d", *current ) )
 		{
 			++current;
-			if( current != last )
+			if( current != last_arg )
 				result.m_demand_count = static_cast< unsigned int >(
 						std::atoi( *current ) );
 			else
@@ -93,7 +93,7 @@ do_benchmark( const cfg_t cfg )
 	timertt::default_timer_action_type common = [&counter]() {
 			++counter;
 		};
-	timertt::default_timer_action_type last = [&]() {
+	timertt::default_timer_action_type last_timer = [&]() {
 			++counter;
 			benchmarker.finish_and_show_stats( counter, "invocations" );
 
@@ -110,7 +110,7 @@ do_benchmark( const cfg_t cfg )
 	tt.activate( pause, first );
 	for( unsigned int i = 0; i != demands; ++i )
 		tt.activate( pause, period, common );
-	tt.activate( pause, last );
+	tt.activate( pause, last_timer );
 
 	condition.wait( lock );
 }

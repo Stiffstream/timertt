@@ -1632,7 +1632,7 @@ struct timer_list_engine_defaults
  * \tparam Thread_Safety Thread-safety indicator.
  * Must be timertt::thread_safety::unsafe or timertt::thread_safety::safe.
  *
- * \tparam Timer_Action type of functor to perform an user-defined
+ * \tparam Time_Action type of functor to perform an user-defined
  * action when timer expires. This must be Moveable and MoveConstructible
  * type.
  *
@@ -2232,10 +2232,9 @@ struct timer_heap_engine_defaults
  * the heap. When this timer elapsed and removed next timer with the
  * eralier time point is going to the top of the heap.
  *
- * This implementation uses array-based <a
- * href="http://en.wikipedia.org/wiki/Binary_heap">binary heap</a>. The array
- * is growing as necessary to hold all the timers. The initial size of that
- * array can be specified in the constructor.
+ * This implementation uses array-based <a href="http://en.wikipedia.org/wiki/Binary_heap">binary heap</a>.
+ * The array is growing as necessary to hold all the timers. The initial size
+ * of that array can be specified in the constructor.
  *
  * \note Unlike timer_wheel and timer_list threads this thread unlock and lock
  * its mutex for processing every timers. It means that processing speed of

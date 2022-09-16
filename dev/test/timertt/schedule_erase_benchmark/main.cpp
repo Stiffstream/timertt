@@ -32,9 +32,9 @@ parse_args( int argc, char ** argv )
 	cfg_t result;
 
 	char ** current = &argv[ 1 ];
-	char ** last = &argv[ argc ];
+	char ** last_arg = &argv[ argc ];
 
-	while( current != last )
+	while( current != last_arg )
 	{
 		if( 0 == std::strcmp( "-h", *current ) )
 		{
@@ -44,7 +44,7 @@ parse_args( int argc, char ** argv )
 		else if( 0 == std::strcmp( "-d", *current ) )
 		{
 			++current;
-			if( current != last )
+			if( current != last_arg )
 				result.m_demand_count = static_cast< unsigned int >(
 						std::atoi( *current ) );
 			else
