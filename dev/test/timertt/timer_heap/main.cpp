@@ -91,7 +91,7 @@ UT_UNIT_TEST( manager_remove_timers )
 				} );
 	}
 
-	std::uniform_int_distribution distrib{ 0, test_size - 1 };
+	std::uniform_int_distribution<> distrib{ 0, test_size - 1 };
 	for( int i = 0; i < timers_to_remove; ++i )
 	{
 		manager.deactivate(
