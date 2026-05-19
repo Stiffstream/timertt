@@ -67,7 +67,7 @@
  * \since
  * v.1.2.1
  */
-#define TIMERTT_VERSION 1002003u
+#define TIMERTT_VERSION 1002004u
 
 /*!
  * \brief Top-level project's namespace.
@@ -2737,39 +2737,56 @@ private :
 	heap_remove( timer_type * timer )
 	{
 		if( timer->m_position == m_heap.size() )
+		{
 			// A special case: timer to remove is a last added item
 			// in the heap. It could be simply removed from heap
 			// without any other actions.
 			m_heap.pop_back();
+		}
 		else
 		{
 			auto last_item = m_heap.back();
 			heap_swap( timer, last_item );
 			m_heap.pop_back();
 
-			// last_item must be heap-down to the appropriate place.
-			while( true )
+			// If timer->m_position is not 1 then we can violate
+			// binary heap order. The last_item can now:
+			//
+			// - be less than its new parent;
+			// - be greater than any of its new children.
+			//
+			// If the last_item is less than new parent then we
+			// have to heap it up. If we move the last_item up then there
+			// is no need to check order down of it.
+			//
+			// But if the last_item wasn't moved up then we have to
+			// check the order down of it.
+			bool should_be_checked_down = true;
+
+			// NOTE: there is no need to check upward direction
+			// if removed timer was the head of the heap.
+			while( last_item->m_position > std::size_t{ 1 } )
 			{
-				auto left_index = last_item->m_position * 2;
-				auto right_index = left_index + 1;
-				auto min_index = last_item->m_position;
-
-				if( left_index <= m_heap.size() &&
-						heap_item( left_index )->m_when <=
-								heap_item( min_index )->m_when )
-					min_index = left_index;
-
-				if( right_index <= m_heap.size() &&
-						heap_item( right_index )->m_when <=
-								heap_item( min_index )->m_when )
-					min_index = right_index;
-
-				if( min_index != last_item->m_position )
-					heap_swap( last_item, heap_item( min_index ) );
+				auto parent = heap_item(
+						last_item->m_position / std::size_t{ 2 } );
+				if( parent->m_when > last_item->m_when )
+				{
+					// Timer must be heap-up on the place of the parent node.
+					heap_swap( parent, last_item );
+					// There is no need to do additional check in downward
+					// order (because parent is guaranteed to be less then
+					// children noded).
+					should_be_checked_down = false;
+				}
 				else
-					// Heap structure is correct.
+				{
+					// There is no need to modify heap structure anymore.
 					break;
+				}
 			}
+
+			if( should_be_checked_down )
+				heap_down_item( last_item );
 		}
 	}
 
@@ -2781,6 +2798,40 @@ private :
 		m_heap[ b->m_position - 1 ] = a;
 
 		std::swap( a->m_position, b->m_position );
+	}
+
+	//! Helper method to ensure that children of the specified
+	//! item are greater.
+	//!
+	//! If this isn't true then \a subtree_head will be moved down
+	//! the heap until the appropriate place will be found.
+	void
+	heap_down_item( timer_type * subtree_head )
+	{
+		do
+		{
+			auto left_index = subtree_head->m_position * std::size_t{ 2 };
+			auto right_index = left_index + std::size_t{ 1 };
+			auto min_index = subtree_head->m_position;
+
+			if( left_index <= m_heap.size() &&
+					heap_item( left_index )->m_when <=
+							heap_item( min_index )->m_when )
+				min_index = left_index;
+
+			if( right_index <= m_heap.size() &&
+					heap_item( right_index )->m_when <=
+							heap_item( min_index )->m_when )
+				min_index = right_index;
+
+			if( min_index != subtree_head->m_position )
+			{
+				heap_swap( subtree_head, heap_item( min_index ) );
+			}
+			else
+				// Heap structure is correct.
+				break;
+		} while( true );
 	}
 
 	//! Get timer by it index.
