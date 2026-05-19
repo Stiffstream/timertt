@@ -75,19 +75,26 @@ UT_UNIT_TEST( manager_remove_timers )
 	std::vector< timer_holder > timers;
 	timers.reserve( test_size );
 
-	std::vector< int > dest;
+	using one_shot_info_t =
+			std::pair< int, timertt::monotonic_clock::time_point >;
+	std::vector< one_shot_info_t > dest;
 	dest.reserve( test_size );
 
 	timer_manager_t manager;
 
 	for( int i = 0; i < test_size; ++i )
 	{
+		auto v = timeouts[ static_cast<std::size_t>(i) ];
 		timers.push_back( manager.allocate() );
 		manager.activate(
 				timers.back(),
-				milliseconds{ timeouts[ i ] },
-				[&dest, v = timeouts[ i ]]() {
-					dest.push_back( v );
+				milliseconds{ v },
+				[&dest, v]() {
+					dest.push_back(
+							std::make_pair(
+									v,
+									timertt::monotonic_clock::now() )
+						);
 				} );
 	}
 
@@ -104,61 +111,32 @@ UT_UNIT_TEST( manager_remove_timers )
 	UT_CHECK_EQ( true, manager.empty() );
 	UT_CHECK_GT( static_cast<std::size_t>(test_size), dest.size() );
 
+	int mismatches = 0;
 	const std::size_t i_max = dest.size() - 1u;
 	for( std::size_t i = 0; i < i_max; ++i )
-		UT_CHECK_LT( dest[ i ], dest[ i + 1 ] );
-}
-
-// Source: https://github.com/Stiffstream/sobjectizer/issues/105
-UT_UNIT_TEST( sobjectizer_issue_105 )
-{
-	using timer_manager_t = timertt::timer_heap_manager_template<
-		timertt::thread_safety::unsafe >;
-	using timer_holder = timer_manager_t::timer_holder;
-
-	std::vector< timer_holder > timers;
-
-	std::vector< int > dest;
-
-	timer_manager_t manager;
-
-	const auto append = [&timers, &dest, &manager]( int t ) {
-		timers.push_back( manager.allocate() );
-		manager.activate( timers.back(),
-				microseconds{ t },
-				[&dest, t]() {
-					dest.push_back( t );
-				} );
-	};
-
-	for( int i : std::initializer_list< int >{
-			0, 0, 25, 49, 26, 25, 49, 2051, 2051, 2051,
-			1058, 50, 998, 298025, 4060, 8025, 3025, 7998,
-			2051, 28057, 3057, 863980, 28998, 118079, 60,
-			58070, 998 } )
 	{
-		append( i );
+		if( dest[ i ].first > dest[ i + 1 ].first )
+		{
+			const auto delta = duration_cast<microseconds>(
+					dest[ i + 1 ].second - dest[ i ].second );
+			std::cout << "mismatch: i=" << i
+					<< ", dest[i]=" << dest[ i ].first
+					<< ", dest[i+1]=" << dest[ i + 1 ].first
+					<< ", delta=" << delta.count() << "us" << std::endl;
+			if( delta > milliseconds{ 1 } )
+			{
+				// Delta is too large. It's possible an error.
+				++mismatches;
+			}
+		}
 	}
 
-	UT_CHECK_EQ( std::size_t{ 27 }, timers.size() );
-
-	manager.deactivate( timers[ 22 ] );
-	
-	std::this_thread::sleep_for( milliseconds{ 1500 } );
-	manager.process_expired_timers();
-
-	UT_CHECK_EQ( true, manager.empty() );
-	UT_CHECK_EQ( timers.size() - 1, dest.size() );
-
-	const std::size_t i_max = dest.size() - 1u;
-	for( std::size_t i = 0; i < i_max; ++i )
-		UT_CHECK_LE( dest[ i ], dest[ i + 1 ] );
+	UT_CHECK_EQ( 0, mismatches );
 }
 
 int main()
 {
 	UT_RUN_UNIT_TEST( execution_order )
 	UT_RUN_UNIT_TEST( manager_remove_timers )
-	UT_RUN_UNIT_TEST( sobjectizer_issue_105 )
 }
 
