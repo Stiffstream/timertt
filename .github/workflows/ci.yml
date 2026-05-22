@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cmake:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux GCC
+            os: ubuntu-latest
+            generator: Ninja
+            cc: gcc
+            cxx: g++
+            toolset: ""
+          - name: Linux Clang
+            os: ubuntu-latest
+            generator: Ninja
+            cc: clang
+            cxx: clang++
+            toolset: ""
+          - name: Windows MSVC
+            os: windows-latest
+            generator: Visual Studio 17 2022
+            cc: ""
+            cxx: ""
+            toolset: ""
+          - name: Windows ClangCL
+            os: windows-latest
+            generator: Visual Studio 17 2022
+            cc: ""
+            cxx: ""
+            toolset: ClangCL
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          $cc = '${{ matrix.cc }}'
+          $cxx = '${{ matrix.cxx }}'
+          $toolset = '${{ matrix.toolset }}'
+
+          if ($cc) {
+            $env:CC = $cc
+          }
+          if ($cxx) {
+            $env:CXX = $cxx
+          }
+
+          $configureArgs = @(
+            '-S', '.',
+            '-B', 'build',
+            '-G', '${{ matrix.generator }}',
+            '-DTIMERTT_BUILD_BENCHMARKS=ON'
+          )
+
+          if ('${{ runner.os }}' -ne 'Windows') {
+            $configureArgs += '-DCMAKE_BUILD_TYPE=Release'
+          }
+          else {
+            $configureArgs += @('-A', 'x64')
+          }
+          if ($toolset) {
+            $configureArgs += @('-T', $toolset)
+          }
+
+          cmake @configureArgs
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
