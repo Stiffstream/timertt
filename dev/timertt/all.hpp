@@ -67,7 +67,7 @@
  * \since
  * v.1.2.1
  */
-#define TIMERTT_VERSION 1002004u
+#define TIMERTT_VERSION 1002005u
 
 /*!
  * \brief Top-level project's namespace.

@@ -375,7 +375,7 @@ UT_UNIT_TEST( anonymous_timers )
 			tt.activate( milliseconds( 100 ),
 					[&v] () { v += "(s3)"; } );
 
-			std::this_thread::sleep_for( milliseconds( 190 ) );
+			std::this_thread::sleep_for( milliseconds( 180 ) );
 
 			tt.shutdown_and_join();
 

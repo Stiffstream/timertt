@@ -1,6 +1,11 @@
 /*!
  * \page timertt_version timertt Version History
  *
+ * \section timertt_version_1_2_5 1.2.5
+ *
+ * The legacy Ruby/Mxx_ru build files were removed. CMake is now the
+ * canonical build system for samples, tests, benchmarks and documentation.
+ *
  * \section timertt_version_1_2_1 1.2.1
  *
  * Version macro TIMERTT_VERSION is added.

@@ -1,0 +1,99 @@
+function(timertt_add_test_executable target source test_name)
+	timertt_add_executable(${target} ${source})
+	add_dependencies(timertt_tests ${target})
+	add_test(NAME ${test_name} COMMAND ${target})
+endfunction()
+
+function(timertt_add_negative_test target source test_name)
+	timertt_add_executable(${target} ${source})
+	add_dependencies(timertt_tests ${target})
+	add_test(NAME ${test_name}
+		COMMAND ${CMAKE_COMMAND}
+			-DTEST_EXECUTABLE=$<TARGET_FILE:${target}>
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/RunNegativeTest.cmake)
+endfunction()
+
+add_custom_target(timertt_tests)
+
+timertt_add_test_executable(timertt_test_manager_basic_checks_timer_wheel_single
+	manager_basic_checks/timer_wheel_single.cpp
+	manager_basic_checks.timer_wheel_single)
+timertt_add_test_executable(timertt_test_manager_basic_checks_timer_wheel_multi
+	manager_basic_checks/timer_wheel_multi.cpp
+	manager_basic_checks.timer_wheel_multi)
+timertt_add_test_executable(timertt_test_manager_basic_checks_timer_wheel_timer_count
+	manager_basic_checks/timer_wheel_timer_count.cpp
+	manager_basic_checks.timer_wheel_timer_count)
+
+timertt_add_test_executable(timertt_test_manager_basic_checks_timer_list_single
+	manager_basic_checks/timer_list_single.cpp
+	manager_basic_checks.timer_list_single)
+timertt_add_test_executable(timertt_test_manager_basic_checks_timer_list_multi
+	manager_basic_checks/timer_list_multi.cpp
+	manager_basic_checks.timer_list_multi)
+
+timertt_add_test_executable(timertt_test_manager_basic_checks_timer_heap_single
+	manager_basic_checks/timer_heap_single.cpp
+	manager_basic_checks.timer_heap_single)
+timertt_add_test_executable(timertt_test_manager_basic_checks_timer_heap_multi
+	manager_basic_checks/timer_heap_multi.cpp
+	manager_basic_checks.timer_heap_multi)
+
+timertt_add_negative_test(timertt_test_manager_throwing_logger_timer_wheel_single
+	manager_throwing_logger/timer_wheel_single.cpp
+	manager_throwing_logger.timer_wheel_single)
+timertt_add_negative_test(timertt_test_manager_throwing_logger_timer_wheel_multi
+	manager_throwing_logger/timer_wheel_multi.cpp
+	manager_throwing_logger.timer_wheel_multi)
+
+timertt_add_negative_test(timertt_test_manager_throwing_logger_timer_list_single
+	manager_throwing_logger/timer_list_single.cpp
+	manager_throwing_logger.timer_list_single)
+timertt_add_negative_test(timertt_test_manager_throwing_logger_timer_list_multi
+	manager_throwing_logger/timer_list_multi.cpp
+	manager_throwing_logger.timer_list_multi)
+
+timertt_add_negative_test(timertt_test_manager_throwing_logger_timer_heap_single
+	manager_throwing_logger/timer_heap_single.cpp
+	manager_throwing_logger.timer_heap_single)
+timertt_add_negative_test(timertt_test_manager_throwing_logger_timer_heap_multi
+	manager_throwing_logger/timer_heap_multi.cpp
+	manager_throwing_logger.timer_heap_multi)
+
+timertt_add_test_executable(timertt_test_basic_checks_timer_wheel
+	basic_checks/timer_wheel.cpp
+	basic_checks.timer_wheel)
+timertt_add_test_executable(timertt_test_basic_checks_no_default_ctor_timer_wheel
+	basic_checks_no_default_ctor/timer_wheel.cpp
+	basic_checks_no_default_ctor.timer_wheel)
+timertt_add_test_executable(timertt_test_timer_wheel
+	timer_wheel/main.cpp
+	timer_wheel)
+
+timertt_add_test_executable(timertt_test_basic_checks_timer_list
+	basic_checks/timer_list.cpp
+	basic_checks.timer_list)
+timertt_add_test_executable(timertt_test_basic_checks_no_default_ctor_timer_list
+	basic_checks_no_default_ctor/timer_list.cpp
+	basic_checks_no_default_ctor.timer_list)
+
+timertt_add_test_executable(timertt_test_basic_checks_timer_heap
+	basic_checks/timer_heap.cpp
+	basic_checks.timer_heap)
+timertt_add_test_executable(timertt_test_basic_checks_no_default_ctor_timer_heap
+	basic_checks_no_default_ctor/timer_heap.cpp
+	basic_checks_no_default_ctor.timer_heap)
+timertt_add_test_executable(timertt_test_timer_heap
+	timer_heap/main.cpp
+	timer_heap)
+
+if(TIMERTT_BUILD_BENCHMARKS)
+	timertt_add_executable(timertt_benchmark_schedule_erase
+		schedule_erase_benchmark/main.cpp)
+	timertt_add_executable(timertt_benchmark_same_time_demands
+		same_time_demands_benchmark/main.cpp)
+	add_custom_target(timertt_benchmarks
+		DEPENDS
+			timertt_benchmark_schedule_erase
+			timertt_benchmark_same_time_demands)
+endif()
