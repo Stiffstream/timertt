@@ -138,14 +138,14 @@ UT_UNIT_TEST( anonymous_timers )
 
 			std::string v;
 
-			tt.activate( milliseconds( 40 ), test_action(v, "(s1)") );
-			tt.activate( milliseconds( 40 ),
-					milliseconds( 40 ),
+			tt.activate( milliseconds( 20 ), test_action(v, "(s1)") );
+			tt.activate( milliseconds( 20 ),
+					milliseconds( 50 ),
 					test_action(v, "(s2)") );
 			tt.activate( milliseconds( 100 ),
 					test_action(v, "(s3)") );
 
-			std::this_thread::sleep_for( milliseconds( 180 ) );
+			std::this_thread::sleep_for( milliseconds( 200 ) );
 
 			tt.shutdown_and_join();
 

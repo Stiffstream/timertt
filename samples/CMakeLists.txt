@@ -34,4 +34,3 @@ if(BUILD_TESTING)
 	add_test(NAME sample.heap.trivial
 		COMMAND timertt_sample_heap_trivial)
 endif()
-

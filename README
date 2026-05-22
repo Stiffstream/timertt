@@ -15,12 +15,17 @@ There are three methods for obtaining timertt library source code.
 1. Download minimal timertt archive from SObjectizer files section on
 SourceForge[2]. This archive has name like timertt-1.2.X-headeronly.7z. Just
 unpack this archive at appropriate location and add timertt folder to your
-project’s INCLUDE path.
+project's INCLUDE path.
 
 2. Download full timertt archive from SObjectizer files section on
 SourceForge[2]. This archive has name like timertt-1.2.X-full.7z. Just unpack
-this archive at appropriate location and add timertt-1.2.X/dev/timertt folder
-to your project’s INCLUDE path.
+this archive at appropriate location and add timertt-1.2.X/include folder to
+your project's INCLUDE path.
+
+CMake users can consume timertt directly:
+
+> add_subdirectory(timertt)
+> target_link_libraries(your_target PRIVATE timertt::timertt)
 
 Tests and samples are built with CMake:
 
@@ -39,7 +44,7 @@ SourceForge. For example:
 
 > git clone <repository-url> timertt-1.2.5
 
-Then add timertt-1.2.X/dev to your project's INCLUDE path or consume the
+Then add timertt-1.2.X/include to your project's INCLUDE path or consume the
 `timertt::timertt` CMake target.
 
 Like in previous method CMake can be used for building timertt tests and
@@ -47,10 +52,10 @@ samples.
 
 API Reference manual can be built by Doxygen tool:
 
-> cd timertt-1.2.X/doxygen
-> doxygen
+> cmake -S . -B build-cmake -DTIMERTT_BUILD_DOCS=ON
+> cmake --build build-cmake --target timertt_docs
 
-Generated documenation will be stored into timertt-1.2.X/dev/doc/html folder.
+Generated documenation will be stored in build-cmake/docs/html.
 
 Main Project Documentation
 ==========================

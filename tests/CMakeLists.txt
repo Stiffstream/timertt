@@ -1,11 +1,13 @@
 function(timertt_add_test_executable target source test_name)
 	timertt_add_executable(${target} ${source})
+	target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/support)
 	add_dependencies(timertt_tests ${target})
 	add_test(NAME ${test_name} COMMAND ${target})
 endfunction()
 
 function(timertt_add_negative_test target source test_name)
 	timertt_add_executable(${target} ${source})
+	target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/support)
 	add_dependencies(timertt_tests ${target})
 	add_test(NAME ${test_name}
 		COMMAND ${CMAKE_COMMAND}
@@ -86,14 +88,3 @@ timertt_add_test_executable(timertt_test_basic_checks_no_default_ctor_timer_heap
 timertt_add_test_executable(timertt_test_timer_heap
 	timer_heap/main.cpp
 	timer_heap)
-
-if(TIMERTT_BUILD_BENCHMARKS)
-	timertt_add_executable(timertt_benchmark_schedule_erase
-		schedule_erase_benchmark/main.cpp)
-	timertt_add_executable(timertt_benchmark_same_time_demands
-		same_time_demands_benchmark/main.cpp)
-	add_custom_target(timertt_benchmarks
-		DEPENDS
-			timertt_benchmark_schedule_erase
-			timertt_benchmark_same_time_demands)
-endif()

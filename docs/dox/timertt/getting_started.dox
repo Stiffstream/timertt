@@ -26,9 +26,16 @@ href="http://svn.code.sf.net/p/sobjectizer/repo/branches/timertt">tree</a>.
 
 \section timertt_getting_started__add_to_the_project Adding To The Project
 
-timertt is a header-only library. All the code in single header file
-<tt>timertt/all.hpp</tt>. So to add timertt to your project is only necessary
-to add path to <tt>timertt/all.hpp</tt> to INCLUDE path.
+timertt is a header-only library. All the code is in single header file
+<tt>include/timertt/all.hpp</tt>. So to add timertt to your project it is only
+necessary to add the repository's <tt>include</tt> directory to the INCLUDE
+path.
+
+CMake users can also consume the exported target:
+\code
+add_subdirectory(timertt)
+target_link_libraries(your_target PRIVATE timertt::timertt)
+\endcode
 
 \section timertt_getting_started__basic_usage_of_timer_threads Basic Usage of Timer Threads
 
