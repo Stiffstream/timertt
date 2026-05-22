@@ -10,57 +10,59 @@ timertt is distributed under 3-clauses BSD license (see LICENSE file).
 Obtaining and Using
 ===================
 
-There are three methods for obtaining timertt library source code.
+timertt is a header-only library. Add `include` to your compiler include path
+and include the public header:
 
-1. Download minimal timertt archive from SObjectizer files section on
-SourceForge[2]. This archive has name like timertt-1.2.X-headeronly.7z. Just
-unpack this archive at appropriate location and add timertt folder to your
-project's INCLUDE path.
+> #include <timertt/all.hpp>
 
-2. Download full timertt archive from SObjectizer files section on
-SourceForge[2]. This archive has name like timertt-1.2.X-full.7z. Just unpack
-this archive at appropriate location and add timertt-1.2.X/include folder to
-your project's INCLUDE path.
+CMake users can consume timertt directly from a source checkout:
 
-CMake users can consume timertt directly:
-
-> add_subdirectory(timertt)
+> add_subdirectory(path/to/timertt)
 > target_link_libraries(your_target PRIVATE timertt::timertt)
 
-Tests and samples are built with CMake:
+An installed package can be consumed in the usual CMake package mode:
 
-> cmake -S . -B build-cmake
-> cmake --build build-cmake --config Release
-> ctest --test-dir build-cmake -C Release
+> find_package(timertt CONFIG REQUIRED)
+> target_link_libraries(your_target PRIVATE timertt::timertt)
+
+Building With CMake
+===================
+
+Configure and build tests and samples:
+
+> cmake -S . -B build-cmake -DCMAKE_BUILD_TYPE=Release
+> cmake --build build-cmake --config Release --parallel
+
+`CMAKE_BUILD_TYPE` is used by single-configuration generators such as Ninja and
+Unix Makefiles. Multi-configuration generators such as Visual Studio use the
+`--config Release` argument during build, test, and install steps.
+
+Run the test suite:
+
+> ctest --test-dir build-cmake -C Release --output-on-failure
 
 Benchmarks are optional and can be enabled explicitly:
 
-> cmake -S . -B build-cmake -DTIMERTT_BUILD_BENCHMARKS=ON
+> cmake -S . -B build-cmake -DCMAKE_BUILD_TYPE=Release -DTIMERTT_BUILD_BENCHMARKS=ON
+> cmake --build build-cmake --config Release --target timertt_benchmarks --parallel
 
-The old Ruby/Mxx_ru build files have been removed.
+Install headers and CMake package files:
 
-3. Export (or check out) timertt source code from Subversion repository on
-SourceForge. For example:
+> cmake --install build-cmake --config Release --prefix <install-prefix>
 
-> git clone <repository-url> timertt-1.2.5
-
-Then add timertt-1.2.X/include to your project's INCLUDE path or consume the
-`timertt::timertt` CMake target.
-
-Like in previous method CMake can be used for building timertt tests and
-samples.
-
-API Reference manual can be built by Doxygen tool:
+API reference documentation can be built with Doxygen:
 
 > cmake -S . -B build-cmake -DTIMERTT_BUILD_DOCS=ON
-> cmake --build build-cmake --target timertt_docs
+> cmake --build build-cmake --config Release --target timertt_docs
 
-Generated documenation will be stored in build-cmake/docs/html.
+Generated documentation will be stored in build-cmake/docs/html.
+
+The old Ruby/Mxx_ru build files have been removed.
 
 Main Project Documentation
 ==========================
 
-Main documenation for timertt library is on SObjectizer’s wiki[3] on
+Main documentation for timertt library is on SObjectizer’s wiki[3] on
 SourceForge.
 
 Bug Reporting and Feedback
