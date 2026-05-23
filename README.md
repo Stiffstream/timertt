@@ -4,7 +4,7 @@ timertt (Timer Thread Template) is a small, template-based, header-only C++11
 library. It implements timer threads: threads that handle timers.
 
 timertt was developed as part of the
-[SObjectizer](http://sourceforge.net/projects/sobjectizer/) project, but can be
+[SObjectizer](https://github.com/Stiffstream/sobjectizer) project, but can be
 used as a standalone library.
 
 timertt is distributed under the 3-clause BSD license. See [LICENSE](LICENSE).
@@ -64,16 +64,8 @@ Install headers and CMake package files:
 cmake --install build-cmake --config Release --prefix <install-prefix>
 ```
 
-API reference documentation can be built with Doxygen:
-
-```sh
-cmake -S . -B build-cmake -DTIMERTT_BUILD_DOCS=ON
-cmake --build build-cmake --config Release --target timertt_docs
-```
-
-Generated documentation will be stored in `build-cmake/docs/html`.
-
-The old Ruby/Mxx_ru build files have been removed.
+API reference documentation can be built with Doxygen -- just run `doxygen`
+command and generated documentation will be stored in `_generated_docs/html`.
 
 ## Main project documentation
 
@@ -88,7 +80,7 @@ discussions, and related feedback.
 
 ## References
 
-- [SObjectizer project](http://sourceforge.net/projects/sobjectizer/)
+- [SObjectizer project](https://github.com/Stiffstream/sobjectizer)
 - [timertt files on SourceForge](http://sourceforge.net/projects/sobjectizer/files/timertt)
 - [timertt documentation wiki](http://sourceforge.net/p/sobjectizer/wiki/Timer%20Thread%20Template/)
 - [Bug tracker](http://sourceforge.net/p/sobjectizer/bugs/)
