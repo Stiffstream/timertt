@@ -16,9 +16,22 @@ endif()
 option(TIMERTT_BUILD_TESTS "Build timertt tests" ${TIMERTT_IS_TOP_LEVEL})
 option(TIMERTT_BUILD_SAMPLES "Build timertt samples" ${TIMERTT_IS_TOP_LEVEL})
 option(TIMERTT_BUILD_BENCHMARKS "Build timertt benchmark executables" OFF)
-option(TIMERTT_STRICT_WARNINGS "Treat project warnings as errors" OFF)
+option(TIMERTT_STRICT_WARNINGS "Treat project warnings as errors" ${TIMERTT_IS_TOP_LEVEL})
 option(TIMERTT_BUILD_DOCS "Add a Doxygen documentation target" OFF)
 option(TIMERTT_INSTALL "Install timertt headers and CMake package files" ${TIMERTT_IS_TOP_LEVEL})
+
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+if(NOT CMAKE_CXX_STANDARD)
+	message(STATUS "C++11 will be used by default")
+	set(CMAKE_CXX_STANDARD 11)
+	set(CMAKE_CXX_STANDARD_REQUIRED ON)
+	set(CXX_EXTENSIONS NO)
+else()
+	message(STATUS "C++ standard is set to C++${CMAKE_CXX_STANDARD}")
+endif()
 
 include(CTest)
 
@@ -27,7 +40,6 @@ find_package(Threads REQUIRED)
 add_library(timertt INTERFACE)
 add_library(timertt::timertt ALIAS timertt)
 
-target_compile_features(timertt INTERFACE cxx_std_11)
 target_include_directories(timertt INTERFACE
 	$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
