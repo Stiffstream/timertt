@@ -17,7 +17,6 @@ option(TIMERTT_BUILD_TESTS "Build timertt tests" ${TIMERTT_IS_TOP_LEVEL})
 option(TIMERTT_BUILD_SAMPLES "Build timertt samples" ${TIMERTT_IS_TOP_LEVEL})
 option(TIMERTT_BUILD_BENCHMARKS "Build timertt benchmark executables" OFF)
 option(TIMERTT_STRICT_WARNINGS "Treat project warnings as errors" ${TIMERTT_IS_TOP_LEVEL})
-option(TIMERTT_BUILD_DOCS "Add a Doxygen documentation target" OFF)
 option(TIMERTT_INSTALL "Install timertt headers and CMake package files" ${TIMERTT_IS_TOP_LEVEL})
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -86,10 +85,6 @@ endif()
 
 if(TIMERTT_BUILD_BENCHMARKS)
 	add_subdirectory(benchmarks)
-endif()
-
-if(TIMERTT_BUILD_DOCS)
-	add_subdirectory(docs)
 endif()
 
 if(TIMERTT_INSTALL)

@@ -1,5 +1,7 @@
 build*/
 
+_generated_docs/
+
 # vim temporary files
 .*.sw?
 

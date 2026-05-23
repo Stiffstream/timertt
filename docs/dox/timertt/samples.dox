@@ -1,26 +1,26 @@
 /*!
- * \example timertt/list/trivial/main.cpp
+ * \example list/trivial/main.cpp
  */
 
 /*!
- * \example timertt/wheel/trivial/main.cpp
- * \example timertt/wheel/trivial_preallocated/main.cpp
+ * \example wheel/trivial/main.cpp
+ * \example wheel/trivial_preallocated/main.cpp
  */
 
 /*!
- * \example timertt/heap/trivial/main.cpp
+ * \example heap/trivial/main.cpp
  */
 
 /*!
- * \example timertt/custom_handler_and_logger/main.cpp
+ * \example custom_handler_and_logger/main.cpp
  */
 
 /*!
- * \example timertt/manager/trivial_thread_safe/main.cpp
+ * \example manager/trivial_thread_safe/main.cpp
  */
 
 /*!
- * \example timertt/manager/trivial_thread_unsafe/main.cpp
+ * \example manager/trivial_thread_unsafe/main.cpp
  */
 
 // vim:ft=cpp
