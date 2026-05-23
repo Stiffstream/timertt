@@ -41,7 +41,7 @@ add_library(timertt INTERFACE)
 add_library(timertt::timertt ALIAS timertt)
 
 target_include_directories(timertt INTERFACE
-	$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+	$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
 	$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_link_libraries(timertt INTERFACE Threads::Threads)
 
@@ -95,7 +95,7 @@ endif()
 if(TIMERTT_INSTALL)
 	include(CMakePackageConfigHelpers)
 
-	install(DIRECTORY include/timertt
+	install(DIRECTORY timertt
 		DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 	install(TARGETS timertt
@@ -121,3 +121,4 @@ if(TIMERTT_INSTALL)
 		${CMAKE_CURRENT_BINARY_DIR}/timerttConfigVersion.cmake
 		DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/timertt)
 endif()
+
