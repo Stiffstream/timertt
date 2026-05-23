@@ -54,7 +54,21 @@ target_compile_options(timertt_project_options INTERFACE
 if(TIMERTT_STRICT_WARNINGS)
 	target_compile_options(timertt_project_options INTERFACE
 		$<$<CXX_COMPILER_ID:MSVC>:/WX>
-		$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Werror>)
+		$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Werror>
+		$<$<CXX_COMPILER_ID:Clang>:-Wno-c++98-compat
+			-Wno-c++98-compat-pedantic
+			-Wno-padded
+			-Wno-missing-noreturn
+			-Wno-weak-vtables
+			-Wno-missing-prototypes
+			-Wno-missing-variable-declarations
+			-Wno-exit-time-destructors
+			-Wno-global-constructors
+			-Wno-reserved-identifier
+			-Wno-implicit-int-float-conversion
+			-Wno-header-hygiene
+		>
+	)
 endif()
 
 function(timertt_add_executable target source)
