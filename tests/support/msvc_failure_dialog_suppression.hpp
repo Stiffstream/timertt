@@ -6,7 +6,7 @@
 #include <crtdbg.h>
 
 #if defined(_WIN32)
-#include <windows.h>
+#include <Windows.h>
 #endif
 
 namespace timertt_tests

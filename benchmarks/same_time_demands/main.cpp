@@ -7,6 +7,10 @@
 
 #include <various_helpers_1/benchmark_helpers.hpp>
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
+#endif
+
 using namespace std::chrono;
 
 struct cfg_t
