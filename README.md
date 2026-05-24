@@ -70,19 +70,16 @@ command and generated documentation will be stored in `_generated_docs/html`.
 ## Main project documentation
 
 Main documentation for timertt is on
-[SObjectizer's wiki](http://sourceforge.net/p/sobjectizer/wiki/Timer%20Thread%20Template/)
-on SourceForge.
+[Wiki](https://github.com/Stiffstream/timertt/wiki).
 
 ## Bug reporting and feedback
 
-Use the SObjectizer SourceForge trackers and forums for bug reports, proposals,
+Use the [Issues](https://github.com/Stiffstream/timertt/issues) section for bug reports, proposals,
 discussions, and related feedback.
 
 ## References
 
 - [SObjectizer project](https://github.com/Stiffstream/sobjectizer)
-- [timertt files on SourceForge](http://sourceforge.net/projects/sobjectizer/files/timertt)
-- [timertt documentation wiki](http://sourceforge.net/p/sobjectizer/wiki/Timer%20Thread%20Template/)
-- [Bug tracker](http://sourceforge.net/p/sobjectizer/bugs/)
-- [Feature requests](http://sourceforge.net/p/sobjectizer/feature-requests/)
-- [Discussion forum](http://sourceforge.net/p/sobjectizer/discussion/)
+- [timertt Wiki](https://github.com/Stiffstream/timertt/wiki) and [old wiki on SourceForge](http://sourceforge.net/p/sobjectizer/wiki/Timer%20Thread%20Template/)
+- [Bug tracker](https://github.com/Stiffstream/timertt/issues)
+- [old timertt files on SourceForge](http://sourceforge.net/projects/sobjectizer/files/timertt)
