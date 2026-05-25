@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [master]
   pull_request:
   workflow_dispatch:
 
@@ -25,6 +26,12 @@ jobs:
             toolset: ""
           - name: Linux Clang
             os: ubuntu-latest
+            generator: Ninja
+            cc: clang
+            cxx: clang++
+            toolset: ""
+          - name: macOS Latest clang
+            os: macos-latest
             generator: Ninja
             cc: clang
             cxx: clang++
